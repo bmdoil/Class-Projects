@@ -49,6 +49,6 @@ int main()
 		std::cout << "\n\n" << ant.moveCount() << " Moves.";
 	}
 	else return 0; //If menu returns false end program
-	return 0;
+	
 }
 
