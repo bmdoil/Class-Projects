@@ -57,6 +57,4 @@ public:
 	//Sets date checked out, takes int
 	void setDateCheckedOut(int);
 };
-
-
 #endif
