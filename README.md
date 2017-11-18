@@ -1,1 +1,1 @@
-# CS344
+# Repository for OSU class projects
