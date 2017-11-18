@@ -1,0 +1,81 @@
+#1/bin/bash
+# Program 1 - stats
+# Brent Doil - CS 344 - 10/9/2017
+# Calculates the mean and median in a table of values. Can use either
+# rows or columns
+
+#Create temp file with PID
+TMP_FILE="temp$$"
+
+#Clean up temp files if interrupt, hangup, or terminate signals caught
+trap "rm -f *$$"; exit 1 INT HUP TERM
+
+#Input validation checks
+
+#Check correct number of arguments
+if [[ $# -gt 2 -o $# -lt 1]]
+then 
+	echo "Usage: stats {-rows|-cols} [input_file]" 1>&2
+	exit 1
+#If no file argument, set to stdin 
+elif [ $# -eq 1]
+then
+	cat > "$TMP_FILE"
+#Else set to temp file
+else
+	TMP_FILE=$2
+fi
+
+#Check if file exists and is readable
+if [[ ( ! -e $2 ) || ( ! -r $2 ) ]]
+then
+	echo "Cannot read file: stats." 1>&2
+	exit 1
+fi
+
+#Calc Rows
+if [[ $1 == -r* ]]
+then
+	echo "Average	Median"
+
+	while read line
+	do 
+		array=("${array[@]}" $line)
+		count=0
+		sum=0
+		mid=0
+		med=0
+		avg=0
+
+
+		for i in "${array[@]}"
+		do
+			sum='expr $sum + $i'
+			count='expr $count + 1'
+		done
+	if [[ "count" -eq "0"]]
+	then
+		exit 0
+	fi
+
+	array=($(for i in "${array[@]}"; do echo "$i"; done | sort -n))
+
+	if [[ "$count" -eq "1"]]
+	then
+		mid=0
+
+	else
+		mid='expr $count / 2'
+		sum='expr $sum + $mid'
+
+	fi
+
+	avg='expr $sum / $count'
+	med=${array[$mid]}
+
+	echo "$ave    $med"
+
+	unset array
+
+	done <"$TMP_FILE"
+
