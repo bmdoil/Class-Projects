@@ -12,8 +12,6 @@ class Patron;
 // CHECKED_OUT, and when it is returned, it's location will
 // become ON_HOLD_SHELF.
 enum Locale { ON_SHELF, ON_HOLD_SHELF, CHECKED_OUT };
-
-
 class Book
 {
 private:

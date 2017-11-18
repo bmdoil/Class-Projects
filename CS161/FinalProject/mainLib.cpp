@@ -18,7 +18,7 @@ int main()
 
 	Library lib;
 	Book book1 = populateLib();
-	//lib.addBook(&book1);
+	lib.addBook(&book1);
 	Patron patron1("1", "Brent");
 	Patron patron2("2", "Gwels");
 	Patron patron3("3", "Me");
@@ -53,19 +53,11 @@ int main()
 		std::cin >> retMenu;
 		if (!retMenu)
 		{
-			return -1;
+			return 0;
 		}
 
 	} while (retMenu);
 }
-	
-	
-
-	
-
-	
-	
-
 
 int mainMenu()
 {

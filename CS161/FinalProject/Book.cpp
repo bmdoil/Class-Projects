@@ -8,75 +8,24 @@
 /*********************************************************************
 ** Description: Constructor for Book object. Sets idCode, title and author.
 *********************************************************************/
-Book::Book(std::string idc, std::string t, std::string a)
+Book::Book(std::string id, std::string t, std::string a)
 {
-	idCode = idc;
+	idCode = id;
 	title = t;
 	author = a;
 	checkedOutBy = NULL;
 	requestedBy = NULL;
 	location = ON_SHELF;
 }
-
-std::string Book::getIdCode() //gets idCode
-{
-	return idCode;
-}
-
-std::string Book::getTitle() //gets title
-{
-	return title;
-}
-
-std::string Book::getAuthor() //gets author
-{
-	return author;
-}
-
-int Book::getCheckOutLength() //gets CHECK_OUT_LENGTH
-{
-	return CHECK_OUT_LENGTH;
-}
-
-Locale Book::getLocation() //gets location (Locale) of book
-{
-	return location;
-}
-
-Patron* Book::getCheckedOutBy() //gets Patron who checked out book
-{
-	return checkedOutBy;
-}
-
-Patron* Book::getRequestedBy() //gets Patron who requested book
-{
-	return requestedBy;
-}
-
-int Book::getDateCheckedOut() //gets date the book was checked out
-{
-	return dateCheckedOut;
-}
-
-//Setters
-
-
-void Book::setLocation(Locale loc) //sets location (Locale) of book
-{
-	location = loc;
-}
-
-void Book::setCheckedOutBy(Patron* chOut) //sets Patron that checked out book
-{
-	checkedOutBy = chOut;
-}
-
-void Book::setRequestedBy(Patron* reBy) //sets Patron that requested book
-{
-	requestedBy = reBy;
-}
-
-void Book::setDateCheckedOut(int date) //sets date the book was checked out
-{
-	dateCheckedOut = date;
-}
+std::string Book::getIdCode(){return idCode;}
+std::string Book::getTitle(){return title;}
+std::string Book::getAuthor(){return author;}
+int Book::getCheckOutLength(){return CHECK_OUT_LENGTH;}
+Locale Book::getLocation(){return location;}
+Patron* Book::getCheckedOutBy(){return checkedOutBy;}
+Patron* Book::getRequestedBy(){return requestedBy;}
+int Book::getDateCheckedOut(){return dateCheckedOut;}
+void Book::setLocation(Locale loc){location = loc;}
+void Book::setCheckedOutBy(Patron* chOut){checkedOutBy = chOut;}
+void Book::setRequestedBy(Patron* reBy){requestedBy = reBy;}
+void Book::setDateCheckedOut(int date){dateCheckedOut = date;}
