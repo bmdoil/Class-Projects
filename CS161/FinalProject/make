@@ -2,7 +2,6 @@ CXX = g++
 CXXFLAGS = -std=c++0x
 CXXFLAGS += -Wall
 CXXFLAGS += -pedantic-errors
-CXXFLAGS += -g
 
 OBJS = Book.o Library.o Patron.o mainLib.o
 
