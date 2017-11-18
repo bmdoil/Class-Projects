@@ -4,9 +4,9 @@ CXXFLAGS += -Wall
 CXXFLAGS += -pedantic-errors
 CXXFLAGS += -g
 
-OBJS = Book.o lib.o Library.o Patron.o mainLib.o
+OBJS = Book.o Library.o Patron.o mainLib.o
 
-SRCS = Book.cpp lib.cpp Library.cpp Patron.cpp
+SRCS = Book.cpp Library.cpp Patron.cpp
 
 HEADERS = Book.hpp Library.hpp Patron.hpp
 

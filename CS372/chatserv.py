@@ -1,4 +1,4 @@
-#1/usr/bin/python
+#!/usr/bin/python
 
 # Brent Doil - Project 1
 # chatserv.py [port]
@@ -25,7 +25,7 @@ while(len(serverHandle) > 12 or len(serverHandle) == 0):
 
 #Function to send a chat message
 def sendChat(socketConn, chat):
-	charSent = 0;
+	charSent = 0
 	while charSent < len(chat):
 		sent = socketConn.send(chat[charSent:].encode())
 		if sent == 0:
@@ -53,7 +53,7 @@ print("Waiting for a connection.\n")
 
 #Listening: When connected, begin send and receive loops. Quit by entering !quit.
 while True:
-	socketConn, addr = socket.accept()
+socketConn, addr = socket.accept()
 
 	#Get client handle from client
 	clientHandle = recChat(socketConn)
