@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
     int listenSocketFD, newConnFD, status;
     int yes = 1;
     socklen_t sizeOfClientInfo;
+    size_t ssize = MAX_DIR;
     pid_t spawnPid = -5;
     struct sockaddr_storage clientAddress;
     struct sigaction sigCld;
@@ -87,9 +88,9 @@ int main(int argc, char *argv[])
     char* token = NULL;
     char* commands[50];
     int commandCount = 0;
-    char* directory[MAX_DIR];
+    char* directory = NULL;
     
-    if (argc < 2) { fprintf(stderr,"USAGE: %s port\n", argv[0]); exit(1); }
+    if (argc < 2) { fprintf(stderr,"USAGE: %s [hostname] [port]\n", argv[0]); exit(1); }
 
     //Set up address struct
     //REF: http://beej.us/guide/bgnet/output/html/multipage/syscalls.html#getaddrinfo
@@ -97,6 +98,7 @@ int main(int argc, char *argv[])
     serverAddress.ai_family = AF_UNSPEC;
     serverAddress.ai_socktype = SOCK_STREAM;
     serverAddress.ai_flags = AI_PASSIVE;
+    serverAddress.ai_protocol = 0;
 
     if (((status) = getaddrinfo(NULL, argv[1], &serverAddress, &servInfo)) != 0)
     {fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status)); exit(1);}
@@ -142,7 +144,7 @@ int main(int argc, char *argv[])
 
         memset(&buffer, '\0', sizeof(buffer));
 
-        if (recv(newConnFD), buffer, sizeof(buffer) - 1, 0) == -1)
+        if (recv(newConnFD, buffer, sizeof(buffer) - 1, 0) == -1)
         {
             //Invalid command, send error message
         }
@@ -164,8 +166,8 @@ int main(int argc, char *argv[])
             else if (strcmp(token, "-g") == 0)
             {
                 sendFile = 1;
-                memset(&fileName, '\0', sizeof(&fileName));
-                strcpy(filename, token);
+                memset(&fileName, '\0', sizeof(fileName));
+                strcpy(fileName, token);
                 token = strtok(NULL, " ");                
             }   
             else 
@@ -186,11 +188,11 @@ int main(int argc, char *argv[])
                 close(listenSocketFD);
                 if (sendDir == 1)
                 {
-                    memset(&directory, '\0', sizeof(&directory));
-                    getcwd(directory, MAX_DIR);
+                    //memset(&directory, '\0', sizeof(directory));
+                    getcwd(directory, ssize);
                     if (directory == NULL){perror("set cwd"); exit(1);}
                    
-                    if (send(newConnFD, directory, strlen(directory) - 1, 0) == -1)
+                    if (send(newConnFD, directory, sizeof(directory) - 1, 0) == -1)
                     {perror("send dir"); exit(1);}
                 }
                 else if (sendFile == 1)

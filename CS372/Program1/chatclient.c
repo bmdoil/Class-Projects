@@ -151,7 +151,7 @@ void beginChat()
 {
 	int chat = 1;
 	char writeBuf[MAX_BUF];
-	char readBuff[MAX_BUF];
+	char readBuf[MAX_BUF];
 	
 	while (chat)
 	{
@@ -182,15 +182,15 @@ void beginChat()
 		}
 
 		//Receive the response
-		memset(&readBuff, 0, sizeof(readBuff));
-		recv(socketfd, readBuff, 512, 0);
-		if (strncmp(readBuf, "!quit"), 4) == 0)
+		memset(&readBuf, 0, sizeof(readBuf));
+		recv(socketfd, readBuf, 512, 0);
+		if (strncmp(readBuf, "!quit", 4) == 0)
 		{
 			printf("Server closed connection. Quitting.\n");
 			close(socketfd);
 			return;
 		}
-		printf("%s> %s\n", serverHandle, readBuff);
+		printf("%s> %s\n", serverHandle, readBuf);
 
 		fflush(stdout);
 	}
