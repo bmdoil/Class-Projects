@@ -184,6 +184,12 @@ void beginChat()
 		//Receive the response
 		memset(&readBuff, 0, sizeof(readBuff));
 		recv(socketfd, readBuff, 512, 0);
+		if (strncmp(readBuf, "!quit"), 4) == 0)
+		{
+			printf("Server closed connection. Quitting.\n");
+			close(socketfd);
+			return;
+		}
 		printf("%s> %s\n", serverHandle, readBuff);
 
 		fflush(stdout);
