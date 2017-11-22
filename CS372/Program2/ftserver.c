@@ -48,6 +48,7 @@ connection P, and ftclient displays the message on-screen.
 #include <signal.h>
 
 #define PENDING 5
+#define MAX_DIR 1024
 
 //SIGCHLD handler 
 //REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
@@ -72,13 +73,21 @@ int main(int argc, char *argv[])
     Lecture 4.3 - Network Servers
     */
 
+    int sendDir = 0;
+    int sendFile = 0;
     int listenSocketFD, newConnFD, status;
     int yes = 1;
     socklen_t sizeOfClientInfo;
+    pid_t spawnPid = -5;
     struct sockaddr_storage clientAddress;
     struct sigaction sigCld;
     char buffer[INET6_ADDRSTRLEN];
+    char fileName[INET6_ADDRSTRLEN];
     struct addrinfo serverAddress, *servInfo, *p;
+    char* token = NULL;
+    char* commands[50];
+    int commandCount = 0;
+    char* directory[MAX_DIR];
     
     if (argc < 2) { fprintf(stderr,"USAGE: %s port\n", argv[0]); exit(1); }
 
@@ -122,17 +131,77 @@ int main(int argc, char *argv[])
 
     while (1)
     {
+        sendDir = 0;
+        sendFile = 0;
+        commandCount = 0;        
         sizeOfClientInfo = sizeof(clientAddress);
+
         newConnFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo);
         if (newConnFD == -1) {perror("accept"); continue;}
         inet_ntop(clientAddress.ss_family, get_in_addr((struct sockaddr *)&clientAddress), buffer, sizeof(buffer));
 
-        if(!fork())
+        memset(&buffer, '\0', sizeof(buffer));
+
+        if (recv(newConnFD), buffer, sizeof(buffer) - 1, 0) == -1)
         {
-            close(listenSocketFD);
-            //Here we send things.
-            if (send(newConnFD, "Hello, world!", 13, 0) == -1)
-                perror("send");
+            //Invalid command, send error message
+        }
+        
+         //Tokenize buffer
+        token = strtok(buffer, " ");
+        while (token != NULL)
+        {   
+            if ((strcmp(token, "-l") && strcmp(token, "-g")) || commandCount > 5)
+            {
+                //Invalid command, send error message
+                break;
+            }
+            if (strcmp(token, "-l") == 0)
+            {
+                sendDir = 1;
+                token = strtok(NULL, " ");                
+            }
+            else if (strcmp(token, "-g") == 0)
+            {
+                sendFile = 1;
+                memset(&fileName, '\0', sizeof(&fileName));
+                strcpy(filename, token);
+                token = strtok(NULL, " ");                
+            }   
+            else 
+            {
+                commands[commandCount] = token;
+                commandCount++;
+            }          
+        }        
+        commands[commandCount] = NULL;
+
+        
+        //Reimplement this as a thread?
+        spawnPid = fork();
+        switch (spawnPid)
+        {
+            case 0: //Child proc begins
+                //Open 2nd TCP connection on DATA PORT commands[0]
+                close(listenSocketFD);
+                if (sendDir == 1)
+                {
+                    memset(&directory, '\0', sizeof(&directory));
+                    getcwd(directory, MAX_DIR);
+                    if (directory == NULL){perror("set cwd"); exit(1);}
+                   
+                    if (send(newConnFD, directory, strlen(directory) - 1, 0) == -1)
+                    {perror("send dir"); exit(1);}
+                }
+                else if (sendFile == 1)
+                {
+
+                }
+            
+
+
+
+
             close(newConnFD);
             exit(0);
         }
