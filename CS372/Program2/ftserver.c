@@ -41,7 +41,12 @@ connection P, and ftclient displays the message on-screen.
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <inttypes.h>
 #include <signal.h>
+
 #define PENDING 5
 
 //SIGCHLD handler 
@@ -54,20 +59,26 @@ void sigchld_handler(int s)
     errno = saved_errno;
 }
 
-int main()
+void *get_in_addr(struct sockaddr *sa) {
+    return sa->sa_family == AF_INET
+      ? (void *) &(((struct sockaddr_in*)sa)->sin_addr)
+      : (void *) &(((struct sockaddr_in6*)sa)->sin6_addr);
+  }
+  
+int main(int argc, char *argv[])
 {
     /*The framework for creating the server is adapted from OSU CSS 344 - Brewster's server.c
     REF: https://oregonstate.instructure.com/courses/1648339/pages/block-4
     Lecture 4.3 - Network Servers
     */
 
-    int listenSocketFD, establishedConnectionFD, charsRead, status;
+    int listenSocketFD, newConnFD, status;
+    int yes = 1;
     socklen_t sizeOfClientInfo;
-    struct sigaction sigCld;
-    socklen_t sin_size;
-    char buffer[INET6_ADDRSTRLEN];
     struct sockaddr_storage clientAddress;
-    struct addrinfo *servInfo, *p;
+    struct sigaction sigCld;
+    char buffer[INET6_ADDRSTRLEN];
+    struct addrinfo serverAddress, *servInfo, *p;
     
     if (argc < 2) { fprintf(stderr,"USAGE: %s port\n", argv[0]); exit(1); }
 
@@ -78,17 +89,17 @@ int main()
     serverAddress.ai_socktype = SOCK_STREAM;
     serverAddress.ai_flags = AI_PASSIVE;
 
-    if ((status) = getaddrinfo(NULL, argv[1], &serverAddress, &servInfo) != 0)
-    {printf(stderr, "getaddrinfo error: %s\n", gai_strerror(status)); exit(1);}
+    if (((status) = getaddrinfo(NULL, argv[1], &serverAddress, &servInfo)) != 0)
+    {fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status)); exit(1);}
 
     //Loop through results of gettaddrinfo and bind to first valid one
     //REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
-    for (p == servInfo; p != NULL; p = p->ai_next)
+    for (p = servInfo; p != NULL; p = p->ai_next)
     {
         if ((listenSocketFD = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
             {perror("server: socket"); continue;}
 
-        if (setsockopt(listenSocketFD, SOL_SOCKET, SO_REUSEADDR, 1, sizeof(int)) == -1)
+        if (setsockopt(listenSocketFD, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
             {perror("setsockopt"); exit(1);}
 
         if (bind(listenSocketFD, p->ai_addr, p->ai_addrlen) == -1)
@@ -97,22 +108,22 @@ int main()
         break;
     }
 
-    freeaddrinfo(servinfo);
+    freeaddrinfo(servInfo);
 
-    if (p == NULL) {printf(stderr, "server failed to bind\n"); exit(1);}
-    if (listen(listenSocketFD, PENDING) = -1) {perror("listen"); exit(1);}
+    if (p == NULL) {fprintf(stderr, "server failed to bind\n"); exit(1);}
+    if (listen(listenSocketFD, PENDING) == -1) {perror("listen"); exit(1);}
 
     sigCld.sa_handler = sigchld_handler;
     sigemptyset(&sigCld.sa_mask);
     sigCld.sa_flags = SA_RESTART;
-    if (sigaction(SIGCHLD, &sigCld, NULL) == -1) {perror("sigaction"; exit(1);)}
+    if (sigaction(SIGCHLD, &sigCld, NULL) == -1) {perror("sigaction"); exit(1);}
 
     printf("server: waiting for connections...\n");
 
     while (1)
     {
-        sin_size = sizeof(clientAddress);
-        newConnFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sin_size);
+        sizeOfClientInfo = sizeof(clientAddress);
+        newConnFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo);
         if (newConnFD == -1) {perror("accept"); continue;}
         inet_ntop(clientAddress.ss_family, get_in_addr((struct sockaddr *)&clientAddress), buffer, sizeof(buffer));
 
@@ -120,7 +131,7 @@ int main()
         {
             close(listenSocketFD);
             //Here we send things.
-            if (send(new_fd, "Hello, world!", 13, 0) == -1)
+            if (send(newConnFD, "Hello, world!", 13, 0) == -1)
                 perror("send");
             close(newConnFD);
             exit(0);
