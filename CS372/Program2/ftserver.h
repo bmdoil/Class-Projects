@@ -1,5 +1,23 @@
-#include <pthread.h>
+#ifndef FTSERVER_H
+#define FTSERVER_H
 
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <fcntl.h>
+
+#include <netdb.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <inttypes.h>
+#include <signal.h>
+#include <dirent.h>
 
 
 #define MAX_CLIENTS 10
@@ -13,14 +31,14 @@ struct THREAD{
     char currentDir[MAX_DIR];
 };
 
-struct CLIENT{
+struct NODE{
     struct THREAD cliThread;
-    struct CLIENT* nextC;
+    struct NODE* next;
 };
 
 struct CLIENTLIST{
-    struct CLIENT *first, *last;
-    int numClients;
+    struct NODE *first, *last;
+    int size;
 };
 
 
@@ -34,4 +52,5 @@ int clientAdd(struct CLIENTLIST*, struct THREAD*);
 int clientRemove(struct CLIENTLIST*, struct THREAD*);
 int clientCompare(struct THREAD*, struct THREAD*);
 void dataConn(void* fd);
-void sendFile()
+void sendFile();
+#endif

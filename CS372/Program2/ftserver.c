@@ -1,18 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <fcntl.h>
 
-#include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <inttypes.h>
-#include <signal.h>
 #include "ftserver.h"
 
 int main(int argc, char *argv[])
@@ -22,14 +8,15 @@ int main(int argc, char *argv[])
     Lecture 4.3 - Network Servers
     */
     int controlSockFD, connectionSockFD, status;
+    int yes = 1;
     struct addrinfo servAddr, *servInfo, *p;
     char buffer[MAX_LEN];
 
     pthread_mutex_t clientMutex;
     struct CLIENTLIST clientList;
-    struct CLIENT* curClient;
+    struct NODE* curClient;
     struct THREAD threads[MAX_CLIENTS];  
-    struct sockaddr_storage clientAddr
+    struct sockaddr_storage clientAddr;
     
     socklen_t sizeOfClientInfo;
     size_t ssize = MAX_DIR;   
@@ -90,11 +77,11 @@ int main(int argc, char *argv[])
         if(clientList.size == MAX_CLIENTS){fprintf(stderr, "Connections full.\n"); continue;}
         inet_ntop(clientAddr.ss_family, get_in_addr((struct sockaddr *)&clientAddr), buffer, sizeof(buffer));
 
-        printf("Connection received from:[%d]%s\n",connectionSockFD, (char*)clientAddr);
+        printf("Connection received from:[%d]\n",connectionSockFD);
         fflush(stdout);
 
         struct THREAD thread;
-        thread.sockfd = connectionSockFD;
+        thread.sockFD = connectionSockFD;
         char cwd[MAX_LEN];
         getcwd(cwd,MAX_LEN);
         strcpy(thread.currentDir,cwd);
@@ -128,7 +115,7 @@ void *get_in_addr(struct sockaddr *sa)
 //REF:https://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory-in-a-c-program
 void clientLS(char* buf, char* path)
 {
-    DIR* d
+    DIR* d;
     d = opendir(path);
     struct dirent* dir;
     if (d)
@@ -137,7 +124,7 @@ void clientLS(char* buf, char* path)
         {
             if (dir->d_type == DT_REG)
             {                                
-                snprintf(buf, sizeof(buf) - 1, "%s\n", dir->dname);
+                snprintf(buf, sizeof(buf) - 1, "%s\n", dir->d_name);
             }
         }
     }
@@ -146,7 +133,7 @@ void clientLS(char* buf, char* path)
 }
 void clientInit(struct CLIENTLIST* list)
 {
-    list->head = list->tail = NULL;
+    list->first = list->last = NULL;
     list->size = 0;
 }
 //Add client to client list. Using Circular Linked List structure adapted from OSU CS 261 Lecture Slides
@@ -156,40 +143,40 @@ int clientAdd(struct CLIENTLIST* list, struct THREAD* thr)
     //If list empty
     if(list->first == NULL)
     {
-        list->first = (struct CLIENT*)malloc(sizeof(struct CLIENT));
+        list->first = (struct NODE*)malloc(sizeof(struct NODE));
         list->first->cliThread = *thr;
         list->first->next = NULL;
         list->last = list->first;
     }
     //If list not empty
     {
-        list->last->next = (struct CLIENT*)malloc(sizeof(struct CLIENT));
+        list->last->next = (struct NODE*)malloc(sizeof(struct NODE));
         list->last->next->cliThread = *thr;
         list->last->next->next = NULL;
-        list->last = list->tail->next;
+        list->last = list->last->next;
     }
     list->size++;
     return 0;
 }
 int clientRemove(struct CLIENTLIST* list, struct THREAD* thr)
 {
-    struct CLIENT* currClient, tempClient;
+    struct NODE *curr, *temp;
     if (list->first == NULL) return -1;
     if (compare(thr, &list->first->cliThread) == 0)
     {
-        tempClient = list->head;
-        list->head = list->head->next;
-        if (list->head == NULL) list->tail = list->head;
+        temp = list->first;
+        list->first = list->first->next;
+        if (list->first == NULL) list->last = list->first;
         free(temp);
         list->size--;
         return 0;
     }
-    for (currClient = list->head; currClient->next != NULL; currClient = currClient->next)
+    for (curr = list->first; curr->next != NULL; curr = curr->next)
     {
-        if (compare(thr, &currClient->next->cliThread) == 0)
+        if (compare(thr, &curr->next->cliThread) == 0)
         {
-            currClient->next = currclient->next->next;
-            free(tempClient);
+            curr->next = curr->next->next;
+            free(temp);
             list->size--;
             return 0;
         }
@@ -202,10 +189,10 @@ void dataConn(void* fileDesc)
 {
     int byteNum;
     //Cast fileDesc to thread struct
-    struct THREAD thread = *(struct TNREAD*)fileDesc;
+    struct THREAD thread = *(struct THREAD*)fileDesc;
 
     while (1)
     {
-        byteNum = recv(thread.sockFD, )
+        //byteNum = recv(thread.sockFD, )
     }
 }
