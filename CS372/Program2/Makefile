@@ -3,9 +3,9 @@ CXXFLAGS = -g
 CXXFLAGS += -Wall
 CXXFLAGS += -lpthread
 
-OBJS = ftserver.o
-SRCS = ftserver.c
-HEADERS = ftserver.h
+OBJS = ftserver.o server.o
+SRCS = ftserver.c server.c
+HEADERS = server.h
 TARGET = ftserver
 
 ${TARGET}: ${SRCS} ${HEADERS}
