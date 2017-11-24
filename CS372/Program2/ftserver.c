@@ -91,4 +91,5 @@ int main(int argc, char *argv[])
         pthread_create(&thread.threadID, NULL, dataConn, (void*)&thread);
         
     return 0;    
+    }
 }

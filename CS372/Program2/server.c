@@ -1,5 +1,5 @@
 
-#include "ftserver.h"
+#include "server.h"
 
 //SIGCHLD handler 
 //REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
@@ -89,8 +89,6 @@ int clientRemove(struct CLIENTLIST* list, struct THREAD* thr)
         }
     }
     return -1;
-}
-
 }
 void dataConn(void* fileDesc)
 {
