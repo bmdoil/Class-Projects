@@ -15,62 +15,54 @@
 #include <signal.h>
 #include "ftserver.h"
 
-#define PENDING 5
-#define MAX_DIR 1024
-
-
-void sigchld_handler(int s);
-void* get_in_addr(struct sockaddr *sa);
-void getDirList(char* buf, char* path);
-
 int main(int argc, char *argv[])
 {
     /*The framework for creating the server is adapted from OSU CSS 344 - Brewster's server.c
     REF: https://oregonstate.instructure.com/courses/1648339/pages/block-4
     Lecture 4.3 - Network Servers
     */
-    int sendDir = 0;
-    int sendFile = 0;
-    int listenSocketFD, newConnFD, status;
-    int yes = 1;
+    int controlSockFD, connectionSockFD, status;
+    struct addrinfo servAddr, *servInfo, *p;
+    char buffer[MAX_LEN];
+
+    pthread_mutex_t clientMutex;
+    struct CLIENTLIST clientList;
+    struct CLIENT* curClient;
+    struct THREAD threads[MAX_CLIENTS];  
+    struct sockaddr_storage clientAddr
+    
     socklen_t sizeOfClientInfo;
-    size_t ssize = MAX_DIR;
-    pid_t spawnPid = -5;
-    FILE* outputFile = NULL;
-    struct sockaddr_storage clientAddress;
-    struct sigaction sigCld;
-    char buffer[INET6_ADDRSTRLEN];
-    char fileName[INET6_ADDRSTRLEN];
-    struct addrinfo serverAddress, *servInfo, *p;
-    char* token = NULL;
-    char* commands[50];
-    int commandCount = 0;
+    size_t ssize = MAX_DIR;   
+    struct sigaction sigCld;  
+    
+    clientInit(&clientList);
+    pthread_mutex_init(&clientMutex, NULL);
         
     if (argc < 2) { fprintf(stderr,"USAGE: %s [hostname] [port]\n", argv[0]); exit(1); }
 
     //Set up address struct
     //REF: http://beej.us/guide/bgnet/output/html/multipage/syscalls.html#getaddrinfo
-    memset((char *)&serverAddress, '\0', sizeof(serverAddress));
-    serverAddress.ai_family = AF_UNSPEC;
-    serverAddress.ai_socktype = SOCK_STREAM;
-    serverAddress.ai_flags = AI_PASSIVE;
-    serverAddress.ai_protocol = 0;
+    memset((char *)&servAddr, '\0', sizeof(servAddr));
+    servAddr.ai_family = AF_UNSPEC;
+    servAddr.ai_socktype = SOCK_STREAM;
+    servAddr.ai_flags = AI_PASSIVE;
+    servAddr.ai_protocol = 0;
 
-    if (((status) = getaddrinfo(NULL, argv[2], &serverAddress, &servInfo)) != 0)
+    if (((status) = getaddrinfo(NULL, argv[2], &servAddr, &servInfo)) != 0)
     {fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status)); exit(1);}
 
     //Loop through results of gettaddrinfo and bind to first valid one
     //REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
     for (p = servInfo; p != NULL; p = p->ai_next)
     {
-        if ((listenSocketFD = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+        if ((controlSockFD = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
             {perror("server: socket"); continue;}
 
-        if (setsockopt(listenSocketFD, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
+        if (setsockopt(controlSockFD, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
             {perror("setsockopt"); exit(1);}
 
-        if (bind(listenSocketFD, p->ai_addr, p->ai_addrlen) == -1)
-            {close(listenSocketFD); perror("server: bind"); continue;}
+        if (bind(controlSockFD, p->ai_addr, p->ai_addrlen) == -1)
+            {close(controlSockFD); perror("server: bind"); continue;}
 
         break;
     }
@@ -79,7 +71,7 @@ int main(int argc, char *argv[])
 
     if (p == NULL) {fprintf(stderr, "server failed to bind\n"); exit(1);}
     //Block?
-    if (listen(listenSocketFD, PENDING) == -1) {perror("listen"); exit(1);}
+    if (listen(controlSockFD, PENDING) == -1) {perror("listen"); exit(1);}
 
     sigCld.sa_handler = sigchld_handler;
     sigemptyset(&sigCld.sa_mask);
@@ -90,81 +82,28 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        sendDir = 0;
-        sendFile = 0;
-        commandCount = 0;        
-        sizeOfClientInfo = sizeof(clientAddress);
+               
+        sizeOfClientInfo = sizeof(clientAddr);
 
-        newConnFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo);
-        if (newConnFD == -1) {perror("accept"); continue;}
-        inet_ntop(clientAddress.ss_family, get_in_addr((struct sockaddr *)&clientAddress), buffer, sizeof(buffer));
+        connectionSockFD = accept(controlSockFD, (struct sockaddr *)&clientAddr, &sizeOfClientInfo);
+        if (connectionSockFD == -1) {perror("accept"); continue;}
+        if(clientList.size == MAX_CLIENTS){fprintf(stderr, "Connections full.\n"); continue;}
+        inet_ntop(clientAddr.ss_family, get_in_addr((struct sockaddr *)&clientAddr), buffer, sizeof(buffer));
 
+        printf("Connection received from:[%d]%s\n",connectionSockFD, (char*)clientAddr);
         fflush(stdout);
-        memset(&buffer, '\0', sizeof(buffer));
 
-        if (recv(newConnFD, buffer, sizeof(buffer) - 1, 0) == -1)
-        {
-            //Invalid command, send error message
-        }
+        struct THREAD thread;
+        thread.sockfd = connectionSockFD;
+        char cwd[MAX_LEN];
+        getcwd(cwd,MAX_LEN);
+        strcpy(thread.currentDir,cwd);
+        pthread_mutex_lock(&clientMutex);
+        clientAdd(&clientList, &thread);
+        pthread_mutex_unlock(&clientMutex);
+
+        pthread_create(&thread.threadID, NULL, dataConn, (void*)&thread);
         
-         //Do I need to tokenize?
-         /*
-        token = strtok(buffer, " ");
-        while (token != NULL)
-        {   
-            //Rethink this
-            if ((strcmp(token, "-l") && strcmp(token, "-g")) || commandCount > 5)
-            {
-                //Invalid command, send error message
-                break;
-            }
-            if (strcmp(token, "-l") == 0)
-            {
-                sendDir = 1;
-                token = strtok(NULL, " ");                
-            }
-            else if (strcmp(token, "-g") == 0)
-            {
-                sendFile = 1;
-                memset(&fileName, '\0', sizeof(fileName));
-                strcpy(fileName, token);
-                token = strtok(NULL, " ");                
-            }   
-            else 
-            {
-                commands[commandCount] = token;
-                commandCount++;
-            }          
-        }        
-        commands[commandCount] = NULL;
-        //Reset buffer
-        memset(&buffer, '\0', sizeof(buffer))
-        */
-        //Reimplement this as a thread
-        spawnPid = fork();
-        if (spawnPid)
-        {
-            close(listenSocketFD);
-            //Open 2nd TCP connection on DATA PORT using commands array  
-            
-            if (sendDir == 1)
-            {                    
-                   getDirList(buffer, ".");                           
-            }
-            else if (sendFile == 1)
-            {
-                outputFile = fopen(fileName, "wb")
-                if (outputFile == NULL){fprintf(stderr, "Unable to open file %s\n", fileName);}
-                int bytesSent = (send(newConnFD, outputFile, sizeof(outputFile), 0));
-                if (bytesSent < 0){perror("send"); exit(1);}
-            }
-            
-           
-        }
-        sendDir = 0;
-        sendFile = 0;
-        close(newConnFD);
-    }
     return 0;    
 }
 
@@ -205,4 +144,68 @@ void clientLS(char* buf, char* path)
     closedir(d);
     //Make sure all data is sent                 
 }
+void clientInit(struct CLIENTLIST* list)
+{
+    list->head = list->tail = NULL;
+    list->size = 0;
+}
+//Add client to client list. Using Circular Linked List structure adapted from OSU CS 261 Lecture Slides
+int clientAdd(struct CLIENTLIST* list, struct THREAD* thr)
+{
+    if(list->size == MAX_CLIENTS) return -1;
+    //If list empty
+    if(list->first == NULL)
+    {
+        list->first = (struct CLIENT*)malloc(sizeof(struct CLIENT));
+        list->first->cliThread = *thr;
+        list->first->next = NULL;
+        list->last = list->first;
+    }
+    //If list not empty
+    {
+        list->last->next = (struct CLIENT*)malloc(sizeof(struct CLIENT));
+        list->last->next->cliThread = *thr;
+        list->last->next->next = NULL;
+        list->last = list->tail->next;
+    }
+    list->size++;
+    return 0;
+}
+int clientRemove(struct CLIENTLIST* list, struct THREAD* thr)
+{
+    struct CLIENT* currClient, tempClient;
+    if (list->first == NULL) return -1;
+    if (compare(thr, &list->first->cliThread) == 0)
+    {
+        tempClient = list->head;
+        list->head = list->head->next;
+        if (list->head == NULL) list->tail = list->head;
+        free(temp);
+        list->size--;
+        return 0;
+    }
+    for (currClient = list->head; currClient->next != NULL; currClient = currClient->next)
+    {
+        if (compare(thr, &currClient->next->cliThread) == 0)
+        {
+            currClient->next = currclient->next->next;
+            free(tempClient);
+            list->size--;
+            return 0;
+        }
+    }
+    return -1;
+}
 
+}
+void dataConn(void* fileDesc)
+{
+    int byteNum;
+    //Cast fileDesc to thread struct
+    struct THREAD thread = *(struct TNREAD*)fileDesc;
+
+    while (1)
+    {
+        byteNum = recv(thread.sockFD, )
+    }
+}
