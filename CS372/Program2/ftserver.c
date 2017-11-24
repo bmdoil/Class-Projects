@@ -1,36 +1,3 @@
-/*
-1. ftserver starts on Host A, and validates command-line parameters
-(<SERVER_PORT>).
-2. ftserver waits on <PORTNUM> for a client request.
-3. ftclient starts on Host B, and validates any pertinent command-line parameters.
-(<SERVER_HOST>, <SERVER_PORT>, <COMMAND>, <FILENAME>,
-<DATA_PORT>, etc…)
-4. ftserver and ftclient establish a TCP control connection on <SERVER_PORT>. (For
-the remainder of this description, call this connection P)
-5. ftserver waits on connection P for ftclient to send a command.
-6. ftclient sends a command (-l (list) or -g <FILENAME> (get)) on connection P.
-7. ftserver receives command on connection P.
-If ftclient sent an invalid command
-• ftserver sends an error message to ftclient on connection P, and ftclient
-displays the message on-screen.
-otherwise
-• ftserver initiates a TCP data connection with ftclient on <DATA_PORT>.
-(Call this connection Q)
-• If ftclient has sent the -l command, ftserver sends its directory to ftclient
-on connection Q, and ftclient displays the directory on-screen.
-• If ftclient has sent -g <FILENAME>, ftserver validates FILENAME, and
-either
-- sends the contents of FILENAME on connection Q. ftclient saves the
-file in the current default directory (handling "duplicate file name" error
-if necessary), and displays a "transfer complete" message on-screen
-or
-- sends an appropriate error message (“File not found”, etc.) to ftclient on
-connection P, and ftclient displays the message on-screen.
-• ftserver closes connection Q (don’t leave open sockets!).
-8. ftclient closes connection P (don’t leave open sockets!) and terminates.
-9. ftserver repeats from 2 (above) until terminated by a supervisor (SIGINT).
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -46,33 +13,22 @@ connection P, and ftclient displays the message on-screen.
 #include <netinet/in.h>
 #include <inttypes.h>
 #include <signal.h>
+#include "ftserver.h"
 
 #define PENDING 5
 #define MAX_DIR 1024
 
-//SIGCHLD handler 
-//REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
-void sigchld_handler(int s)
-{
-    
-    int saved_errno = errno;
-    while(waitpid(-1, NULL, WNOHANG) > 0);
-    errno = saved_errno;
-}
 
-void *get_in_addr(struct sockaddr *sa) {
-    return sa->sa_family == AF_INET
-      ? (void *) &(((struct sockaddr_in*)sa)->sin_addr)
-      : (void *) &(((struct sockaddr_in6*)sa)->sin6_addr);
-  }
-  
+void sigchld_handler(int s);
+void* get_in_addr(struct sockaddr *sa);
+void getDirList(char* buf, char* path);
+
 int main(int argc, char *argv[])
 {
     /*The framework for creating the server is adapted from OSU CSS 344 - Brewster's server.c
     REF: https://oregonstate.instructure.com/courses/1648339/pages/block-4
     Lecture 4.3 - Network Servers
     */
-
     int sendDir = 0;
     int sendFile = 0;
     int listenSocketFD, newConnFD, status;
@@ -80,6 +36,7 @@ int main(int argc, char *argv[])
     socklen_t sizeOfClientInfo;
     size_t ssize = MAX_DIR;
     pid_t spawnPid = -5;
+    FILE* outputFile = NULL;
     struct sockaddr_storage clientAddress;
     struct sigaction sigCld;
     char buffer[INET6_ADDRSTRLEN];
@@ -88,8 +45,7 @@ int main(int argc, char *argv[])
     char* token = NULL;
     char* commands[50];
     int commandCount = 0;
-    char* directory = NULL;
-    
+        
     if (argc < 2) { fprintf(stderr,"USAGE: %s [hostname] [port]\n", argv[0]); exit(1); }
 
     //Set up address struct
@@ -100,7 +56,7 @@ int main(int argc, char *argv[])
     serverAddress.ai_flags = AI_PASSIVE;
     serverAddress.ai_protocol = 0;
 
-    if (((status) = getaddrinfo(NULL, argv[1], &serverAddress, &servInfo)) != 0)
+    if (((status) = getaddrinfo(NULL, argv[2], &serverAddress, &servInfo)) != 0)
     {fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status)); exit(1);}
 
     //Loop through results of gettaddrinfo and bind to first valid one
@@ -122,6 +78,7 @@ int main(int argc, char *argv[])
     freeaddrinfo(servInfo);
 
     if (p == NULL) {fprintf(stderr, "server failed to bind\n"); exit(1);}
+    //Block?
     if (listen(listenSocketFD, PENDING) == -1) {perror("listen"); exit(1);}
 
     sigCld.sa_handler = sigchld_handler;
@@ -142,6 +99,7 @@ int main(int argc, char *argv[])
         if (newConnFD == -1) {perror("accept"); continue;}
         inet_ntop(clientAddress.ss_family, get_in_addr((struct sockaddr *)&clientAddress), buffer, sizeof(buffer));
 
+        fflush(stdout);
         memset(&buffer, '\0', sizeof(buffer));
 
         if (recv(newConnFD, buffer, sizeof(buffer) - 1, 0) == -1)
@@ -149,10 +107,12 @@ int main(int argc, char *argv[])
             //Invalid command, send error message
         }
         
-         //Tokenize buffer
+         //Do I need to tokenize?
+         /*
         token = strtok(buffer, " ");
         while (token != NULL)
         {   
+            //Rethink this
             if ((strcmp(token, "-l") && strcmp(token, "-g")) || commandCount > 5)
             {
                 //Invalid command, send error message
@@ -177,38 +137,72 @@ int main(int argc, char *argv[])
             }          
         }        
         commands[commandCount] = NULL;
-
-        
-        //Reimplement this as a thread?
+        //Reset buffer
+        memset(&buffer, '\0', sizeof(buffer))
+        */
+        //Reimplement this as a thread
         spawnPid = fork();
-        switch (spawnPid)
+        if (spawnPid)
         {
-            case 0: //Child proc begins
-                //Open 2nd TCP connection on DATA PORT commands[0]
-                close(listenSocketFD);
-                if (sendDir == 1)
-                {
-                    //memset(&directory, '\0', sizeof(directory));
-                    getcwd(directory, ssize);
-                    if (directory == NULL){perror("set cwd"); exit(1);}
-                   
-                    if (send(newConnFD, directory, sizeof(directory) - 1, 0) == -1)
-                    {perror("send dir"); exit(1);}
-                }
-                else if (sendFile == 1)
-                {
-
-                }
+            close(listenSocketFD);
+            //Open 2nd TCP connection on DATA PORT using commands array  
             
-
-
-
-
-            close(newConnFD);
-            exit(0);
+            if (sendDir == 1)
+            {                    
+                   getDirList(buffer, ".");                           
+            }
+            else if (sendFile == 1)
+            {
+                outputFile = fopen(fileName, "wb")
+                if (outputFile == NULL){fprintf(stderr, "Unable to open file %s\n", fileName);}
+                int bytesSent = (send(newConnFD, outputFile, sizeof(outputFile), 0));
+                if (bytesSent < 0){perror("send"); exit(1);}
+            }
+            
+           
         }
+        sendDir = 0;
+        sendFile = 0;
         close(newConnFD);
     }
-    return 0;
-    
+    return 0;    
 }
+
+//SIGCHLD handler 
+//REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
+void sigchld_handler(int s)
+{
+    
+    int saved_errno = errno;
+    while(waitpid(-1, NULL, WNOHANG) > 0);
+    errno = saved_errno;
+}
+//Get correct sockaddr. Handles IPv4 and IPv6 
+//REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
+void *get_in_addr(struct sockaddr *sa)
+{
+    return sa->sa_family == AF_INET
+      ? (void *) &(((struct sockaddr_in*)sa)->sin_addr)
+      : (void *) &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
+//List files in directory 'path'
+//REF:https://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory-in-a-c-program
+void clientLS(char* buf, char* path)
+{
+    DIR* d
+    d = opendir(path);
+    struct dirent* dir;
+    if (d)
+    {
+        while (dir = readdir(d) != NULL)
+        {
+            if (dir->d_type == DT_REG)
+            {                                
+                snprintf(buf, sizeof(buf) - 1, "%s\n", dir->dname);
+            }
+        }
+    }
+    closedir(d);
+    //Make sure all data is sent                 
+}
+
