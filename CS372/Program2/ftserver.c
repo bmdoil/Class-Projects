@@ -11,18 +11,13 @@ int main(int argc, char *argv[])
     struct addrinfo servAddr, *servInfo, *p;
     char buffer[MAX_LEN];
 
-    pthread_mutex_t clientMutex;
-    struct CLIENTLIST clientList;
-    struct NODE* curClient;
-    struct THREAD threads[MAX_CLIENTS];  
+    
     struct sockaddr_storage clientAddr;
     
     socklen_t sizeOfClientInfo;
     size_t ssize = MAX_DIR;   
-    struct sigaction sigCld;  
+    struct sigaction sigCld;    
     
-    clientInit(&clientList);
-    pthread_mutex_init(&clientMutex, NULL);
         
     if (argc < 2) { fprintf(stderr,"USAGE: %s [hostname] [port]\n", argv[0]); exit(1); }
 
@@ -78,19 +73,16 @@ int main(int argc, char *argv[])
 
         printf("Connection received from:[%d]\n",connectionSockFD);
         fflush(stdout);
+         
+         //Receive data port
 
-        struct THREAD thread;
-        thread.sockFD = connectionSockFD;
-        char cwd[MAX_LEN];
-        getcwd(cwd,MAX_LEN);
-        strcpy(thread.currentDir,cwd);
-        pthread_mutex_lock(&clientMutex);
-        //Receive CL args from client and open connection socket
-        clientAdd(&clientList, &thread);
-        pthread_mutex_unlock(&clientMutex);
+         //Receive command
 
-        pthread_create(&thread.threadID, NULL, dataConn, (void*)&thread);
+         //Depending on command, send dir list or file
+        
         
     return 0;    
     }
+    close(connectionSockFD);
+    close(controlSockFD)
 }

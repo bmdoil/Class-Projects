@@ -53,7 +53,7 @@ print("Waiting for a connection.\n")
 
 #Listening: When connected, begin send and receive loops. Quit by entering !quit.
 while True:
-socketConn, addr = socket.accept()
+	socketConn, addr = socket.accept()
 
 	#Get client handle from client
 	clientHandle = recChat(socketConn)

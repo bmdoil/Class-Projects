@@ -1,7 +1,12 @@
 #!/bin/python
 
+import sys
+import socket
 import client
 
+if (len(sys.argv) < 5) or (len(sys.argv) > 6):
+    print("Usage: ftclient.py [SERVER_HOST][SERVER_PORT][COMMAND][FILENAME][DATA_PORT]")
+    sys.exit(1)
 
 command = client.parse_command()
 serv_addr = client.parse_host()
