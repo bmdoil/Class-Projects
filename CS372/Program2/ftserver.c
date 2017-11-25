@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     servAddr.ai_flags = AI_PASSIVE;
     servAddr.ai_protocol = 0;
 
-    if (((status) = getaddrinfo(NULL, argv[2], &servAddr, &servInfo)) != 0)
+    if ((getaddrinfo(NULL, argv[2], &servAddr, &servInfo)) != 0)
     {fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status)); exit(1);}
 
     //Loop through results of gettaddrinfo and bind to first valid one
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
     freeaddrinfo(servInfo);
 
     if (p == NULL) {fprintf(stderr, "server failed to bind\n"); exit(1);}
-    //Block?
+    //Waiting on client connection
     if (listen(controlSockFD, PENDING) == -1) {perror("listen"); exit(1);}
 
     sigCld.sa_handler = sigchld_handler;
@@ -85,6 +85,7 @@ int main(int argc, char *argv[])
         getcwd(cwd,MAX_LEN);
         strcpy(thread.currentDir,cwd);
         pthread_mutex_lock(&clientMutex);
+        //Receive CL args from client and open connection socket
         clientAdd(&clientList, &thread);
         pthread_mutex_unlock(&clientMutex);
 

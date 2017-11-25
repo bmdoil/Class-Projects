@@ -43,6 +43,11 @@ void clientInit(struct CLIENTLIST* list)
     list->first = list->last = NULL;
     list->size = 0;
 }
+//TODO
+int clientCompare(struct THREAD* thr1, struct THREAD* thr2)
+{
+    return 0;
+}
 //Add client to client list. Using Circular Linked List structure adapted from OSU CS 261 Lecture Slides
 int clientAdd(struct CLIENTLIST* list, struct THREAD* thr)
 {
@@ -69,7 +74,7 @@ int clientRemove(struct CLIENTLIST* list, struct THREAD* thr)
 {
     struct NODE *curr, *temp;
     if (list->first == NULL) return -1;
-    if (compare(thr, &list->first->cliThread) == 0)
+    if ((clientCompare(thr, &list->first->cliThread)) == 0)
     {
         temp = list->first;
         list->first = list->first->next;
@@ -80,7 +85,7 @@ int clientRemove(struct CLIENTLIST* list, struct THREAD* thr)
     }
     for (curr = list->first; curr->next != NULL; curr = curr->next)
     {
-        if (compare(thr, &curr->next->cliThread) == 0)
+        if ((clientCompare(thr, &curr->next->cliThread)) == 0)
         {
             curr->next = curr->next->next;
             free(temp);
@@ -98,6 +103,6 @@ void dataConn(void* fileDesc)
 
     while (1)
     {
-        //byteNum = recv(thread.sockFD, )
+        byteNum = recv(thread.sockFD, )
     }
 }
