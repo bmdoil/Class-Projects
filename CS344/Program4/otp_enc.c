@@ -1,0 +1,180 @@
+#include <ctype.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <math.h>
+#include <pthread.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+
+#define MAX_LEN 1024
+/*In this syntax, plaintext is the name of a file in the current directory that contains the plaintext you wish to encrypt. 
+Similarly, key contains the encryption key you wish to use to encrypt the text. 
+Finally, port is the port that otp_enc should attempt to connect to otp_enc_d on.
+When otp_enc receives the ciphertext back from otp_enc_d, it should output it to stdout. 
+Thus, otp_enc can be launched in any of the following methods, and should send its output appropriately:
+
+otp_enc plaintext key port
+
+When otp_enc receives the ciphertext back from otp_enc_d, it should output it to stdout. Thus, otp_enc can be launched in any of the following methods, and should send its output appropriately:
+
+If otp_enc receives key or plaintext files with bad characters in them, or the key file is shorter than the plaintext, it should exit with an error, and set the exit value to 1. 
+If otp_enc cannot find the port given, it should report this error to stderr (not into the plaintext or ciphertext files) with the bad port, and set the exit value to 2.
+Otherwise, on successfully running, otp_enc should set the exit value to 0.
+otp_enc should NOT be able to connect to otp_dec_d, even if it tries to connect on the correct port - you'll need to have the programs reject each other.
+If this happens, otp_enc should report the rejection to stderr and then terminate itself.
+Again, any and all error text must be output to stderr.
+*/
+void validateContents(char* contents, int size, char* seed, char* filename);
+void sendFile(int sockfd, char* file);
+
+int main(int argc, char* argv[])
+{
+    //argv[1] = plaintext
+    //argv[2] = key
+    //argv[3] = port
+    
+    if (argc != 4)
+    {
+        fprintf(stderr, "Usage: ./otp_enc plaintext key port\n");
+        exit(3);
+    }
+    struct addrinfo addr, *addrInfo, *p;
+    char* plainName = argv[1];
+    char* keyName = argv[2];
+    char* hostname = "localhost";
+    FILE* plaintextFile;
+    FILE* keyFile;
+    char* pfileContents = NULL;
+    char* kfileContents = NULL;
+    char* seed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
+    char* port = NULL;
+    //Convert port
+    inet_pton(AF_INET, argv[3], port);
+    int pSize = 0;
+    int kSize = 0;
+    int sock, sockFD;
+    //int i, j;
+    
+    
+    plaintextFile = fopen(plainName, "r");
+    if (plaintextFile < 0) {fprintf(stderr, "Error opening file: %s", plainName); exit(3);}
+    
+    keyFile = fopen(keyName, "r");
+    if (keyFile < 0) {fprintf(stderr, "Error opening file: %s", keyName); exit(3);}
+    
+    //Get file sizes
+    fseek(plaintextFile, 0L, SEEK_END);
+    pSize = ftell(plaintextFile);
+    rewind(plaintextFile);
+    
+    fseek(keyFile, 0L, SEEK_END);
+    kSize = ftell(keyFile);
+    rewind(keyFile);
+    //printf("pSize: %d\nfSize: %d\n", pSize, kSize);
+    //If plaintext size > key size, exit 1.
+    if (pSize > kSize) {fprintf(stderr, "Error: KEY '%s' length must be longer than PLAINTEXT '%s' length.\n", keyName, plainName); exit(1);}
+    
+    pfileContents = malloc(sizeof(char*)*pSize);
+    kfileContents = malloc(sizeof(char*)*kSize);
+    fread(pfileContents, pSize, pSize, plaintextFile);
+    fread(kfileContents, kSize, kSize, keyFile);
+   
+    validateContents(pfileContents, pSize, seed, plainName);
+    validateContents(kfileContents, kSize, seed, keyName);
+    
+    memset((char*)&addr, '\0', sizeof(addr));
+    addr.ai_family = AF_INET;
+    addr.ai_socktype = SOCK_STREAM;
+    addr.ai_flags = AI_PASSIVE;
+    addr.ai_protocol = 0;
+    
+    if((getaddrinfo(hostname, port, &addr, &addrInfo)) != 0){fprintf(stderr, "Error setting up socket connection\n"); exit(2);}
+    
+     //Modified from Beej's guide to establish a connection
+    //REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
+    
+   
+    for (p = addrInfo; p != NULL; p = p->ai_next)
+    {
+        if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {perror("Socket Setup:"); continue;}
+        if ((sockFD = connect(sock, p->ai_addr, p->ai_addrlen)) == -1) {perror("Socket Connection:"); close(sock); close(sockFD); exit(2);}
+        break;
+    }
+    freeaddrinfo(addrInfo);
+    
+    sendFile(sockFD, pfileContents);
+    
+    
+    printf("EOF\n");
+    free(pfileContents);
+    free(kfileContents);
+    
+    
+    return 0;
+    
+}
+
+void validateContents(char* contents, int size, char* seed, char* filename)
+{
+    int i, j;
+    int good = 0;
+    
+    for (i = 0; i < size - 1; i++)
+    {
+        good = 0;
+        for (j = 0; j < strlen(seed); j++)
+        {
+            if (contents[i] == seed[j])
+            {
+                good = 1;
+            }
+        }
+        if (good == 0)
+        {
+            fprintf(stderr, "Error: Invalid character in %s: '%c' at location %d\n", filename, contents[i], i);
+            exit(1);
+        }
+        else continue;
+    }
+}
+
+void sendFile(int sockfd, char* file)
+{   
+    int bytesSent = 0;
+    
+        FILE* fd = NULL;
+       
+        fd = fopen(file, "r");
+        //If file not in directory
+        if (fd <= 0)
+        {
+            send(sockfd, "NOFILE", 6, 0);
+            perror("File not found\n");
+            printf("Quitting.\n");
+            return;           
+        }
+        //Transfer file while EOF has not been reached
+        send(sockfd, file, strlen(file), 0);
+        while(!(feof(fd)))
+        {
+            
+            char* fileBuf[MAX_LEN] = {0};
+            int n = fread(fileBuf, 1, MAX_LEN, fd);  
+            bytesSent += n;          
+            send(sockfd, fileBuf, n, 0);
+        }     
+         printf("File transfer complete. Sent %d bytes.\n", bytesSent);     
+    
+      
+}
+
