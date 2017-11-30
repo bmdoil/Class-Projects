@@ -17,25 +17,10 @@
 #include <unistd.h>
 
 #define MAX_LEN 1024
-/*In this syntax, plaintext is the name of a file in the current directory that contains the plaintext you wish to encrypt. 
-Similarly, key contains the encryption key you wish to use to encrypt the text. 
-Finally, port is the port that otp_enc should attempt to connect to otp_enc_d on.
-When otp_enc receives the ciphertext back from otp_enc_d, it should output it to stdout. 
-Thus, otp_enc can be launched in any of the following methods, and should send its output appropriately:
 
-otp_enc plaintext key port
-
-When otp_enc receives the ciphertext back from otp_enc_d, it should output it to stdout. Thus, otp_enc can be launched in any of the following methods, and should send its output appropriately:
-
-If otp_enc receives key or plaintext files with bad characters in them, or the key file is shorter than the plaintext, it should exit with an error, and set the exit value to 1. 
-If otp_enc cannot find the port given, it should report this error to stderr (not into the plaintext or ciphertext files) with the bad port, and set the exit value to 2.
-Otherwise, on successfully running, otp_enc should set the exit value to 0.
-otp_enc should NOT be able to connect to otp_dec_d, even if it tries to connect on the correct port - you'll need to have the programs reject each other.
-If this happens, otp_enc should report the rejection to stderr and then terminate itself.
-Again, any and all error text must be output to stderr.
-*/
 void validateContents(char* contents, int size, char* seed, char* filename);
-void sendFile(int sockfd, char* file);
+void sendFile(int sockfd, char* contents);
+void recvFile(int sockfd);
 
 int main(int argc, char* argv[])
 {
@@ -48,11 +33,13 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Usage: ./otp_enc plaintext key port\n");
         exit(3);
     }
+    char* handshake = "3Q9I6E";
+    char buffer[MAX_LEN];
     struct addrinfo addr, *addrInfo, *p;
     char* plainName = argv[1];
     char* keyName = argv[2];
     char* hostname = "localhost";
-    FILE* plaintextFile;
+    FILE* plainFile;
     FILE* keyFile;
     char* pfileContents = NULL;
     char* kfileContents = NULL;
@@ -63,19 +50,20 @@ int main(int argc, char* argv[])
     int pSize = 0;
     int kSize = 0;
     int sock, sockFD;
+    int yes = 1;
     //int i, j;
     
     
-    plaintextFile = fopen(plainName, "r");
-    if (plaintextFile < 0) {fprintf(stderr, "Error opening file: %s", plainName); exit(3);}
+    plainFile = fopen(plainName, "r");
+    if (plainFile < 0) {fprintf(stderr, "Error opening file: %s", plainName); exit(3);}
     
     keyFile = fopen(keyName, "r");
     if (keyFile < 0) {fprintf(stderr, "Error opening file: %s", keyName); exit(3);}
     
     //Get file sizes
-    fseek(plaintextFile, 0L, SEEK_END);
-    pSize = ftell(plaintextFile);
-    rewind(plaintextFile);
+    fseek(plainFile, 0L, SEEK_END);
+    pSize = ftell(plainFile);
+    rewind(plainFile);
     
     fseek(keyFile, 0L, SEEK_END);
     kSize = ftell(keyFile);
@@ -86,9 +74,10 @@ int main(int argc, char* argv[])
     
     pfileContents = malloc(sizeof(char*)*pSize);
     kfileContents = malloc(sizeof(char*)*kSize);
-    fread(pfileContents, pSize, pSize, plaintextFile);
+    fread(pfileContents, pSize, pSize, plainFile);
+    
     fread(kfileContents, kSize, kSize, keyFile);
-   
+    
     validateContents(pfileContents, pSize, seed, plainName);
     validateContents(kfileContents, kSize, seed, keyName);
     
@@ -98,30 +87,36 @@ int main(int argc, char* argv[])
     addr.ai_flags = AI_PASSIVE;
     addr.ai_protocol = 0;
     
-    if((getaddrinfo(hostname, port, &addr, &addrInfo)) != 0){fprintf(stderr, "Error setting up socket connection\n"); exit(2);}
+    if((getaddrinfo(hostname, port, &addr, &addrInfo)) != 0){fprintf(stderr, "Error creating socket %s\n",argv[3]); exit(2);}
     
-     //Modified from Beej's guide to establish a connection
-    //REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
-    
-   
+    //Modified from Beej's guide to establish a connection
+    //REF: http://beej.us/guide/bgnet/output/html/multipage/clientserver.html  
     for (p = addrInfo; p != NULL; p = p->ai_next)
     {
-        if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {perror("Socket Setup:"); continue;}
-        if ((sockFD = connect(sock, p->ai_addr, p->ai_addrlen)) == -1) {perror("Socket Connection:"); close(sock); close(sockFD); exit(2);}
+        if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {perror("Socket Setup"); continue;}
+        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {perror("setsockopt"); close(sock); exit(2);}
+        if ((sockFD = connect(sock, p->ai_addr, p->ai_addrlen)) == -1) {fprintf(stderr, "Bad Port: %s\n", argv[3]); close(sock); exit(2);}
         break;
     }
     freeaddrinfo(addrInfo);
-    
-    sendFile(sockFD, pfileContents);
-    
-    
-    printf("EOF\n");
+    memset(&buffer, '\0', sizeof(buffer));
+
+    if (send(sockFD, handshake, strlen(handshake), 0) < 0) {perror("Handshake Error"); close(sock); close(sockFD); exit(2);}
+    if (recv(sockFD, buffer, sizeof(buffer), 0) < 0) {perror("Data recv error"); close(sock); close(sockFD); exit(2);}
+    if (strcmp(buffer, handshake) != 0)
+    {
+        fprintf(stderr, "Connection with %s:%s rejected. Closing connection.\n", hostname, argv[3]);
+        close(sock);
+        close(sockFD);
+        exit(2);
+    }
+
+    sendFile(sockFD, pfileContents);   
+    recvFile(sockFD)
+    //printf("EOF\n");
     free(pfileContents);
-    free(kfileContents);
-    
-    
-    return 0;
-    
+    free(kfileContents);   
+    return 0;    
 }
 
 void validateContents(char* contents, int size, char* seed, char* filename)
@@ -147,34 +142,36 @@ void validateContents(char* contents, int size, char* seed, char* filename)
         else continue;
     }
 }
-
-void sendFile(int sockfd, char* file)
+//Strip newline
+void sendFile(int sockfd, char* contents)
 {   
-    int bytesSent = 0;
-    
-        FILE* fd = NULL;
-       
-        fd = fopen(file, "r");
-        //If file not in directory
-        if (fd <= 0)
-        {
-            send(sockfd, "NOFILE", 6, 0);
-            perror("File not found\n");
-            printf("Quitting.\n");
-            return;           
-        }
+        int bytesSent = 0;
+        FILE* tempFD = NULL;
+        char* tempFile = contents;
+        tempFile[strcspn(tempFile, "\n")] = 0;
+        
+        tempFD = fopen(tempFile, "r");
         //Transfer file while EOF has not been reached
-        send(sockfd, file, strlen(file), 0);
-        while(!(feof(fd)))
+        send(sockfd, tempFile, strlen(tempFile), 0);
+        while(!(feof(tempFD)))
         {
             
             char* fileBuf[MAX_LEN] = {0};
-            int n = fread(fileBuf, 1, MAX_LEN, fd);  
+            int n = fread(fileBuf, 1, MAX_LEN, tempFD);  
             bytesSent += n;          
             send(sockfd, fileBuf, n, 0);
         }     
-         printf("File transfer complete. Sent %d bytes.\n", bytesSent);     
-    
-      
+         printf("File transfer complete. Sent %d bytes.\n", bytesSent); 
 }
-
+//Recv file and send to stdout
+void recvFile(int sockfd)
+{
+    int bytesRecv = 0;
+    char buff[MAX_LEN] = {0};   
+    //Recv size of file to be sent
+    while ((bytesRecv = recv(sockfd, buff, MAX_LEN, 0) > 0))
+    {
+        write(1, buff, MAX_LEN);
+    }
+    write(1, "\n", 1);
+}
