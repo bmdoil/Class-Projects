@@ -18,7 +18,7 @@
 
 #define MAX_LEN 1024
 void sendFile(int sockfd, char* contents);
-void recvFile(int sockfd);
+void recvFile(int sockfd, int outputfd, int newline);
 
 int main(int argc, char* argv[])
 {
@@ -27,17 +27,18 @@ int main(int argc, char* argv[])
     char* handshake = "3Q9I6E";
     char buffer[MAX_LEN];
     struct addrinfo addr, *addrInfo, *p;
-    char* hostname = "localhost"
-    char* port = NULL;
+    char* hostname = "localhost";
+    
+    char* port = argv[1];
     socklen_t addr_size;
-    struct sockaddr_in clientAddr
+    struct sockaddr_in clientAddr;
     //Convert port
-    inet_pton(AF_INET, argv[1], port);
-    int sock, sockFD;
+    
+    int sock, sockFD, status;
     int yes = 1;
-    pid_t = spawnPid;
+    pid_t spawnPid = -5;
 
-     memset((char*)&addr, '\0', sizeof(addr));
+    memset((char*)&addr, '\0', sizeof(addr));
     addr.ai_family = AF_INET;
     addr.ai_socktype = SOCK_STREAM;
     addr.ai_flags = AI_PASSIVE;
@@ -55,28 +56,93 @@ int main(int argc, char* argv[])
     if (p == NULL) {fprintf(stderr, "server failed to bind\n"); exit(2);}
     freeaddrinfo(addrInfo);
     if (listen(sock, 5) == -1) {perror("listen"); exit(1);}
-    printf("server: waiting for connections...\n");
-    fflush(stdout);
-
-    //Spawn child process to do separate encryptions    
-    while (sockFD = accept(sock, (struct sockaddr *)&clientAddr, &addr_size))
+    printf("Listening on socket: %s:%s\n", hostname, argv[1]);
+    while (1)
     {
-        //Fork
-        spawnPid = fork();
-        //In child close listening socket, do stuff on accepted socket
-
-        //In parent close accepted socket, resume accept loop
-        addr_size = sizeof(struct sockaddr_in);
-        
-        if (sockFD < 0) {perror("accept"); printf("error accepting connection"); close(sock); close(sockFD); exit(2);}
-
-        if (recv(sockFD, buffer, sizeof(buffer), 0) < 0){perror("Data recv error:"; close(sock); close(sockFD); exit(2);)}
-        if (strcmp(buffer, handshake) != 0)
+        addr_size = sizeof(clientAddr);
+        //int result = 0;
+        sockFD = accept(sock, (struct sockaddr *)&clientAddr, &addr_size);
+        if (sockFD < 0) {printf("error accepting connection"); close(sockFD);close(sock); exit(2);}
+        printf("Connection accepted.\n");
+        switch (spawnPid = fork())
         {
-
+            case -1:
+                perror("Server failed to create fork.\n");
+                break;
+            case 0:
+                close(sock);
+                memset(&buffer, '\0', sizeof(buffer));
+                int checkConn = recv(sockFD, buffer, sizeof(buffer), 0);
+                if (checkConn == 1) {perror("Handshake error");close(sockFD); exit(2);}       
+                send(sockFD, handshake, strlen(handshake), 0);  
+                if (strcmp(buffer, handshake) != 0)
+                    {
+                            fprintf(stderr, "Connection with %s:%s rejected. Closing connection.\n", hostname, argv[3]);
+                            close(sock);
+                            close(sockFD);
+                            exit(2);
+                    }
+                else
+                    { 
+                        memset(&buffer, '\0', sizeof(buffer));
+                        recv(sockFD, buffer, sizeof(buffer), 0);
+                        printf("%s", buffer);
+                        send(sockFD, "Begin upload", 14, 0);
+                        //FILE* temp = open("recvd", 'w+');
+                        recvFile(sockFD, STDOUT_FILENO, 1); //write to stdout
+                        //close(temp);
+                    }
+            default:
+                close(sockFD);
+                waitpid(-1, &status, WNOHANG);
+        
         }
+        
     }
     
+
+    /*while (1)
+    {
+        addr_size = sizeof(clientAddr);
+        int result = 0;
+        
+        sockFD = accept(sock, (struct sockaddr *)&clientAddr, &addr_size);
+        if (sockFD < 0) {printf("error accepting connection"); close(sockFD);close(sock); exit(2);}
+        printf("Connection accepted.\n");
+        switch (spawnPid = fork())
+        {
+            case -1:
+                perror("Server failed to create fork.\n");
+                break;
+            case 0:              
+            close(sock);
+            memset(&buffer, '\0', sizeof(buffer));
+            if ((recv(sockFD, buffer, strlen(handshake), 0)) < 0){perror("Handshake error");close(sockFD); exit(2);}
+            printf("%s\n", buffer);
+            send(sockFD, handshake, sizeof(handshake), 0);
+            if (strcmp(buffer, handshake) == 0)
+            {
+                fprintf(stderr, "Connection with %s:%s rejected. Closing connection.\n", hostname, argv[3]);
+                close(sock);
+                close(sockFD);
+                exit(2);
+            }
+            else
+            {
+               memset(&buffer, '\0', sizeof(buffer));
+               recv(sockFD, buffer, sizeof(buffer), 0);
+               printf("%s\n", buffer);
+               send(sockFD, "Begin upload\n", 14, 0);
+            }
+
+
+        }
+        else {close(sockFD); exit(0);}
+        waitpid(-1, &status, WNOHANG);
+    }  
+    */
+        
+    return 0;
 }
 
 void sendFile(int sockfd, char* contents)
@@ -100,14 +166,19 @@ void sendFile(int sockfd, char* contents)
          printf("File transfer complete. Sent %d bytes.\n", bytesSent); 
 }
 //Recv file and send to stdout
-void recvFile(int sockfd)
+void recvFile(int sockfd, int outputfd, int newline)
 {
     int bytesRecv = 0;
     char buff[MAX_LEN] = {0};   
     //Recv size of file to be sent
     while ((bytesRecv = recv(sockfd, buff, MAX_LEN, 0) > 0))
     {
-        write(1, buff, MAX_LEN);
+        write(outputfd, buff, MAX_LEN);
     }
-    write(1, "\n", 1);
+    if (newline == 1)
+    {
+        write(outputfd, "\n", 1);
+    }
+    
+    //printf("\n");
 }

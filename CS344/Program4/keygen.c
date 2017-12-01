@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
     int i, temp;
     char* seed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
     char* keyGen = malloc(sizeof(char*)*keyLength +1);
-    char a = 'A';
+    
     
     for (i = 0; i < keyLength; i++)
     {

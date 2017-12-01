@@ -19,8 +19,8 @@
 #define MAX_LEN 1024
 
 void validateContents(char* contents, int size, char* seed, char* filename);
-void sendFile(int sockfd, char* contents);
-void recvFile(int sockfd);
+void sendFile(int sockfd, char* filename, int filesize);
+void recvFile(int sockfd, int outputpd);
 
 int main(int argc, char* argv[])
 {
@@ -41,14 +41,13 @@ int main(int argc, char* argv[])
     char* pfileContents = NULL;
     char* kfileContents = NULL;
     char* seed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
-    char* port = NULL;
+    char* port = argv[3];
     //Convert port
-    inet_pton(AF_INET, argv[3], port);
+    
     int pSize = 0;
     int kSize = 0;
-    int sock, sockFD;
-    int yes = 1;
-    //int i, j;
+    int sock;
+    
     
     
     plainFile = fopen(plainName, "r");
@@ -65,12 +64,12 @@ int main(int argc, char* argv[])
     fseek(keyFile, 0L, SEEK_END);
     kSize = ftell(keyFile);
     rewind(keyFile);
-    //printf("pSize: %d\nfSize: %d\n", pSize, kSize);
+    printf("pSize: %d\nfSize: %d\n", pSize, kSize);
     //If plaintext size > key size, exit 1.
     if (pSize > kSize) {fprintf(stderr, "Error: KEY '%s' length must be longer than PLAINTEXT '%s' length.\n", keyName, plainName); exit(1);}
     
-    pfileContents = malloc(sizeof(char*)*pSize);
-    kfileContents = malloc(sizeof(char*)*kSize);
+    pfileContents = malloc(sizeof(char)*pSize);
+    kfileContents = malloc(sizeof(char)*kSize);
     fread(pfileContents, pSize, pSize, plainFile);
     
     fread(kfileContents, kSize, kSize, keyFile);
@@ -91,25 +90,38 @@ int main(int argc, char* argv[])
     for (p = addrInfo; p != NULL; p = p->ai_next)
     {
         if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {perror("Socket Setup"); continue;}
-        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {perror("setsockopt"); close(sock); exit(2);}
-        if ((sockFD = connect(sock, p->ai_addr, p->ai_addrlen)) == -1) {fprintf(stderr, "Bad Port: %s\n", argv[3]); close(sock); exit(2);}
+        if (connect(sock, p->ai_addr, p->ai_addrlen) == -1) {fprintf(stderr, "Bad Port: %s\n", argv[3]); close(sock); exit(2);}
         break;
     }
     freeaddrinfo(addrInfo);
+    if (p == NULL){perror("Connection failed\n"); exit(2);}
     memset(&buffer, '\0', sizeof(buffer));
 
-    if (send(sockFD, handshake, strlen(handshake), 0) < 0) {perror("Handshake Error"); close(sock); close(sockFD); exit(2);}
-    if (recv(sockFD, buffer, sizeof(buffer), 0) < 0) {perror("Data recv error"); close(sock); close(sockFD); exit(2);}
+    printf("Connection accepted.\n");
+    int checkConn = send(sock, handshake, strlen(handshake), 0);
+    if (checkConn == -1) {perror("Handshake Error"); close(sock); exit(2);}
+    
+    if (recv(sock, buffer, sizeof(buffer), 0) < 0) {perror("Data recv error"); close(sock); exit(2);}
+    
     if (strcmp(buffer, handshake) != 0)
     {
         fprintf(stderr, "Connection with %s:%s rejected. Closing connection.\n", hostname, argv[3]);
         close(sock);
-        close(sockFD);
+        
         exit(2);
     }
-
-    sendFile(sockFD, pfileContents);   
-    recvFile(sockFD)
+    else
+    {
+        printf("Handshake accepted. ");
+        memset(&buffer, '\0', sizeof(buffer));
+        send(sock, "Handshake accepted.\n", 20, 0);
+        recv(sock, buffer, sizeof(buffer), 0);
+        printf("%s\n", buffer);
+    }
+   
+    sendFile(sock, plainName, pSize);  
+    //sendFile(sock, kfileContents);
+    
     //printf("EOF\n");
     free(pfileContents);
     free(kfileContents);   
@@ -140,17 +152,17 @@ void validateContents(char* contents, int size, char* seed, char* filename)
     }
 }
 //Strip newline
-void sendFile(int sockfd, char* contents)
+void sendFile(int sockfd, char* filename, int filesize)
 {   
         int bytesSent = 0;
         FILE* tempFD = NULL;
-        char* tempFile = contents;
-        tempFile[strcspn(tempFile, "\n")] = 0;
+        //char* tempFile = contents;
+        //tempFile[strcspn(tempFile, "\n")] = 0;
         
-        tempFD = fopen(tempFile, "r");
+        tempFD = fopen(filename, "r");
         //Transfer file while EOF has not been reached
-        send(sockfd, tempFile, strlen(tempFile), 0);
-        while(!(feof(tempFD)))
+        //send(sockfd, filename, strlen(tempFile), 0);
+        while(bytesSent < (filesize - 1)) //Don't send newline. 
         {
             
             char* fileBuf[MAX_LEN] = {0};
@@ -161,14 +173,14 @@ void sendFile(int sockfd, char* contents)
          printf("File transfer complete. Sent %d bytes.\n", bytesSent); 
 }
 //Recv file and send to stdout
-void recvFile(int sockfd)
+void recvFile(int sockfd, int outputfd)
 {
     int bytesRecv = 0;
     char buff[MAX_LEN] = {0};   
     //Recv size of file to be sent
     while ((bytesRecv = recv(sockfd, buff, MAX_LEN, 0) > 0))
     {
-        write(1, buff, MAX_LEN);
+        write(outputfd, buff, MAX_LEN);
     }
-    write(1, "\n", 1);
+    write(outputfd, "\n", 1);
 }
