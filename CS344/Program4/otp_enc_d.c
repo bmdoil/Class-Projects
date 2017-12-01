@@ -18,7 +18,8 @@
 
 #define MAX_LEN 1024
 void sendFile(int sockfd, char* contents);
-void recvFile(int sockfd, int outputfd, int newline);
+void recvFile(int sockfd, FILE* output, int newline);
+void encrypt(FILE* plainF, FILE* keyF, char* seed, char* res);
 
 int main(int argc, char* argv[])
 {
@@ -28,8 +29,9 @@ int main(int argc, char* argv[])
     char buffer[MAX_LEN];
     struct addrinfo addr, *addrInfo, *p;
     char* hostname = "localhost";
-    
+    char* seed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
     char* port = argv[1];
+    char* result;
     socklen_t addr_size;
     struct sockaddr_in clientAddr;
     //Convert port
@@ -88,9 +90,20 @@ int main(int argc, char* argv[])
                         recv(sockFD, buffer, sizeof(buffer), 0);
                         printf("%s", buffer);
                         send(sockFD, "Begin upload", 14, 0);
-                        //FILE* temp = open("recvd", 'w+');
-                        recvFile(sockFD, STDOUT_FILENO, 1); //write to stdout
-                        //close(temp);
+                        //recvFile(sockFD, NULL, 1); //write to stdout and add newline
+                        // Test
+                        
+                        FILE* plainFD = fopen("plainTemp", "w+");
+                        FILE* keyFD = fopen("keyTemp", "w+");
+                        recvFile(sockFD, plainFD, 1);
+                        recvFile(sockFD, keyFD, 1);
+                        encrypt(plainFD, keyFD, seed, result);
+                        printf("%s", result);
+                        //Endtest
+                        remove("plainTemp");
+                        remove("keyTemp");
+                        free(result);
+                        
                     }
             default:
                 close(sockFD);
@@ -99,50 +112,8 @@ int main(int argc, char* argv[])
         }
         
     }
-    
-
-    /*while (1)
-    {
-        addr_size = sizeof(clientAddr);
-        int result = 0;
-        
-        sockFD = accept(sock, (struct sockaddr *)&clientAddr, &addr_size);
-        if (sockFD < 0) {printf("error accepting connection"); close(sockFD);close(sock); exit(2);}
-        printf("Connection accepted.\n");
-        switch (spawnPid = fork())
-        {
-            case -1:
-                perror("Server failed to create fork.\n");
-                break;
-            case 0:              
-            close(sock);
-            memset(&buffer, '\0', sizeof(buffer));
-            if ((recv(sockFD, buffer, strlen(handshake), 0)) < 0){perror("Handshake error");close(sockFD); exit(2);}
-            printf("%s\n", buffer);
-            send(sockFD, handshake, sizeof(handshake), 0);
-            if (strcmp(buffer, handshake) == 0)
-            {
-                fprintf(stderr, "Connection with %s:%s rejected. Closing connection.\n", hostname, argv[3]);
-                close(sock);
-                close(sockFD);
-                exit(2);
-            }
-            else
-            {
-               memset(&buffer, '\0', sizeof(buffer));
-               recv(sockFD, buffer, sizeof(buffer), 0);
-               printf("%s\n", buffer);
-               send(sockFD, "Begin upload\n", 14, 0);
-            }
-
-
-        }
-        else {close(sockFD); exit(0);}
-        waitpid(-1, &status, WNOHANG);
-    }  
-    */
-        
-    return 0;
+  
+   return 0;
 }
 
 void sendFile(int sockfd, char* contents)
@@ -165,20 +136,87 @@ void sendFile(int sockfd, char* contents)
         }     
          printf("File transfer complete. Sent %d bytes.\n", bytesSent); 
 }
-//Recv file and send to stdout
-void recvFile(int sockfd, int outputfd, int newline)
+//Recv file
+void recvFile(int sockfd, FILE* output, int newline)
 {
     int bytesRecv = 0;
-    char buff[MAX_LEN] = {0};   
-    //Recv size of file to be sent
-    while ((bytesRecv = recv(sockfd, buff, MAX_LEN, 0) > 0))
+    char buff[MAX_LEN] = {0};
+    if (output == NULL) 
     {
-        write(outputfd, buff, MAX_LEN);
+        // Recv file and Write to stdout
+        while ((bytesRecv = recv(sockfd, buff, MAX_LEN, 0) > 0))
+        {
+            write(STDOUT_FILENO, buff, MAX_LEN);
+        }
+        if (newline == 1)
+        {
+            write(STDOUT_FILENO, "\n", 1);
+        }
     }
-    if (newline == 1)
+    else
+    {   //Recv file and write to FILE* output
+        while ((bytesRecv = recv(sockfd, buff, MAX_LEN, 0) > 0))
+        {
+            fwrite(buff, MAX_LEN, MAX_LEN, output);
+        }
+    }
+}
+
+
+void encrypt(FILE* plainF, FILE* keyF, char* seed, char* res)
+{
+    char* pfileContents;
+    char* kfileContents;
+    char* result;
+    int pSize, kSize;
+    //char* encrypted;
+    //char* numVal;
+    int i, j;
+    //Get file sizes
+    fseek(plainF, 0L, SEEK_END);
+    pSize = ftell(plainF);
+    rewind(plainF);
+    
+    fseek(keyF, 0L, SEEK_END);
+    kSize = ftell(keyF);
+    rewind(keyF);
+    
+    pfileContents = malloc(sizeof(char)*pSize);
+    kfileContents = malloc(sizeof(char)*kSize);
+    result = malloc(sizeof(char)*pSize);
+    //numVal = malloc(sizeof(char)* strlen(seed));
+    //Read file stream into char* 
+    fread(pfileContents, pSize, pSize, plainF);
+    pfileContents[strcspn(pfileContents, "\n")] = 0;
+    fread(kfileContents, kSize, kSize, keyF);
+    kfileContents[strcspn(kfileContents, "\n")] = 0;
+    
+    //Convert plaintext to number 0 - 27 based on seed 
+    for (i = 0; i < pSize; i++)
     {
-        write(outputfd, "\n", 1);
+        for (j = 0; j < strlen(seed); j++)
+        {
+            if (pfileContents[i] == seed[j])
+            {
+               snprintf(&pfileContents[i], 1, "%d", j);
+            }
+        }
+    }
+    //Convert key to number 0 - 27 based on seed
+    for (i = 0; i < kSize; i++)
+    {
+        for (j = 0; j < strlen(seed); j++)
+        {
+            if (kfileContents[i] == seed[j])
+            {
+                snprintf(&pfileContents[i], 1, "%d", j);
+            }
+        }
     }
     
-    //printf("\n");
+    for (i = 0; i < pSize; i++)
+    {
+        int temp = (pfileContents[i] + kfileContents[i]) % 27;
+        result[i] = seed[temp];  
+    }
 }

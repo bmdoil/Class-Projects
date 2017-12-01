@@ -28,8 +28,7 @@ int main(int argc, char* argv[])
     //argv[2] = key
     //argv[3] = port
     
-    if (argc < 4){fprintf(stderr, "USAGE: %s plaintext key port\n", argv[0]);exit(3);
-    }
+    if (argc < 4){fprintf(stderr, "USAGE: %s plaintext key port\n", argv[0]);exit(3);}
     char* handshake = "3Q9I6E";
     char buffer[MAX_LEN];
     struct addrinfo addr, *addrInfo, *p;
@@ -184,3 +183,5 @@ void recvFile(int sockfd, int outputfd)
     }
     write(outputfd, "\n", 1);
 }
+
+
