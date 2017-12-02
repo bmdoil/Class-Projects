@@ -18,9 +18,12 @@
 
 #define MAX_LEN 1024
 
+//Ref: https://stackoverflow.com/questions/8236/how-do-you-determine-the-size-of-a-file-in-c
+off_t fsize(const char *filename);
+
 void validateContents(char* contents, int size, char* seed, char* filename);
-void sendFile(int sockfd, char* filename, int filesize);
-void recvFile(int sockfd, int outputpd);
+void sendFile(int sockfd, char* file);
+void recvFile(int sockfd, char* contents, int flag);
 
 int main(int argc, char* argv[])
 {
@@ -35,47 +38,13 @@ int main(int argc, char* argv[])
     char* plainName = argv[1];
     char* keyName = argv[2];
     char* hostname = "localhost";
-    FILE* plainFile;
-    FILE* keyFile;
-    char* pfileContents = NULL;
-    char* kfileContents = NULL;
+    int sock;
+
+    
     char* seed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
     char* port = argv[3];
-    //Convert port
     
-    int pSize = 0;
-    int kSize = 0;
-    int sock;
-    
-    
-    
-    plainFile = fopen(plainName, "r");
-    if (plainFile < 0) {fprintf(stderr, "Error opening file: %s", plainName); exit(3);}
-    
-    keyFile = fopen(keyName, "r");
-    if (keyFile < 0) {fprintf(stderr, "Error opening file: %s", keyName); exit(3);}
-    
-    //Get file sizes
-    fseek(plainFile, 0L, SEEK_END);
-    pSize = ftell(plainFile);
-    rewind(plainFile);
-    
-    fseek(keyFile, 0L, SEEK_END);
-    kSize = ftell(keyFile);
-    rewind(keyFile);
-    printf("pSize: %d\nfSize: %d\n", pSize, kSize);
-    //If plaintext size > key size, exit 1.
-    if (pSize > kSize) {fprintf(stderr, "Error: KEY '%s' length must be longer than PLAINTEXT '%s' length.\n", keyName, plainName); exit(1);}
-    
-    pfileContents = malloc(sizeof(char)*pSize);
-    kfileContents = malloc(sizeof(char)*kSize);
-    fread(pfileContents, pSize, pSize, plainFile);
-    
-    fread(kfileContents, kSize, kSize, keyFile);
-    
-    validateContents(pfileContents, pSize, seed, plainName);
-    validateContents(kfileContents, kSize, seed, keyName);
-    
+        
     memset((char*)&addr, '\0', sizeof(addr));
     addr.ai_family = AF_INET;
     addr.ai_socktype = SOCK_STREAM;
@@ -96,7 +65,7 @@ int main(int argc, char* argv[])
     if (p == NULL){perror("Connection failed\n"); exit(2);}
     memset(&buffer, '\0', sizeof(buffer));
 
-    printf("Connection accepted.\n");
+    
     int checkConn = send(sock, handshake, strlen(handshake), 0);
     if (checkConn == -1) {perror("Handshake Error"); close(sock); exit(2);}
     
@@ -109,24 +78,37 @@ int main(int argc, char* argv[])
         
         exit(2);
     }
-    else
-    {
-        printf("Handshake accepted. ");
-        memset(&buffer, '\0', sizeof(buffer));
-        send(sock, "Handshake accepted.\n", 20, 0);
-        recv(sock, buffer, sizeof(buffer), 0);
-        printf("%s\n", buffer);
-    }
-   
-    sendFile(sock, plainName, pSize);  
-    //sendFile(sock, kfileContents);
+    send(sock, &pSize, sizeof(pSize), 0); //Send pfile size
+    send(sock, &kSize, sizeof(kSize), 0); //Send kfilesize
+
+    parseFiles(sock, plainName, keyName, seed);
     
-    //printf("EOF\n");
-    free(pfileContents);
-    free(kfileContents);   
     return 0;    
 }
+void parseFiles(int sockFD, char* pName, char* kName, char* seed)
+{
+    off_t pSize = 0;
+    off_t kSize = 0;
+    
+    pSize = fsize(pName);
+    kSize = fsize(kName);  
+    FILE* pFile = fopen(pName, "r");
+    FILE* kFile = fopen(kName, "r");
+    //If plaintext size > key size, exit 1.
+    if (pSize > kSize) {fprintf(stderr, "Error: KEY '%s' length must be longer than PLAINTEXT '%s' length.\n", keyName, plainName); exit(1);}
+    
+    char* pfileContents = malloc(sizeof(char)*pSize);
+    char* kfileContents = malloc(sizeof(char)*kSize);
 
+    fread(pfileContents, 1, pSize, pFile);
+    fread(kfileContents, 1, kSize, kFile);
+    
+    validateContents(pfileContents, pSize, seed, plainName);
+    validateContents(kfileContents, kSize, seed, keyName);
+
+    sendFile(sockFD, pSize, pFile, pfileContents);
+    sendFile(sockFD, kSize, kFile, kfileContents);
+}
 void validateContents(char* contents, int size, char* seed, char* filename)
 {
     int i, j;
@@ -150,38 +132,59 @@ void validateContents(char* contents, int size, char* seed, char* filename)
         else continue;
     }
 }
-//Strip newline
-void sendFile(int sockfd, char* filename, int filesize)
-{   
-        int bytesSent = 0;
-        FILE* tempFD = NULL;
-        //char* tempFile = contents;
-        //tempFile[strcspn(tempFile, "\n")] = 0;
-        
-        tempFD = fopen(filename, "r");
-        //Transfer file while EOF has not been reached
-        //send(sockfd, filename, strlen(tempFile), 0);
-        while(bytesSent < (filesize - 1)) //Don't send newline. 
-        {
-            
-            char* fileBuf[MAX_LEN] = {0};
-            int n = fread(fileBuf, 1, MAX_LEN, tempFD);  
-            bytesSent += n;          
-            send(sockfd, fileBuf, n, 0);
-        }     
-         printf("File transfer complete. Sent %d bytes.\n", bytesSent); 
-}
-//Recv file and send to stdout
-void recvFile(int sockfd, int outputfd)
-{
-    int bytesRecv = 0;
-    char buff[MAX_LEN] = {0};   
-    //Recv size of file to be sent
-    while ((bytesRecv = recv(sockfd, buff, MAX_LEN, 0) > 0))
-    {
-        write(outputfd, buff, MAX_LEN);
-    }
-    write(outputfd, "\n", 1);
-}
 
+void sendFile(int sockfd, off_t size, FILE* file, char* fileName);
+{   
+    int bytesSent = 0;
+
+        //Transfer file while EOF has not been reached
+       
+    while(!(feof(file)))
+    {
+            
+        char* fileBuf[MAX_LEN] = {0};
+        int n = fread(fileBuf, 1, size, file);  
+        bytesSent += n;          
+        send(sockfd, fileBuf, n, 0);
+    }     
+    //printf("File transfer complete. Sent %d bytes.\n", bytesSent);     
+     
+      
+}
+//Recv file
+char* recvFile(int sockfd, off_t size, int flag)
+{
+    char* recvdFile = malloc(sizeof(char*)*size);
+    int bytesRecv = 0;
+    char buff[MAX_LEN] = {0};
+    int n = 0;
+    if (flag == 1) 
+    {
+        // Recv file and Write to stdout
+        while ((n = recv(sockfd, buff, MAX_LEN, 0) > 0))
+        {
+            write(STDOUT_FILENO, buff, MAX_LEN);
+            bytesRecv += n;
+            return NULL;
+        }        
+    }
+    else
+    {   //Recv file and write to FILE* output
+        while ((n = recv(sockfd, buff, MAX_LEN, 0 ) > 0)
+        {
+            write(recvdFile, buff, MAX_LEN);
+            bytesRecv += n;
+        }        
+    }
+    return recvdFile;
+}
+off_t fsize(const char* filename)
+{
+    struct stat st;
+
+    if(stat(filename, &st) == 0)
+        return st.st_size;
+    fprintf(stderr, "Can't determine size of %s: %s\n", filename, strerror(errno));
+        return -1;
+}
 

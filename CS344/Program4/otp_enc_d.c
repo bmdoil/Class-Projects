@@ -17,9 +17,10 @@
 #include <unistd.h>
 
 #define MAX_LEN 1024
-void sendFile(int sockfd, char* contents);
-void recvFile(int sockfd, FILE* output, int newline);
-void encrypt(FILE* plainF, FILE* keyF, char* seed, char* res);
+off_t fsize(const char *filename);
+char* recvFile(int sockfd, off_t size, int flag);
+void sendFile(int sockfd, off_t size, FILE* file, char* fileName);
+//void encrypt(char* plainF, char* keyF, char* seed, char* res);
 
 int main(int argc, char* argv[])
 {
@@ -29,12 +30,17 @@ int main(int argc, char* argv[])
     char buffer[MAX_LEN];
     struct addrinfo addr, *addrInfo, *p;
     char* hostname = "localhost";
-    char* seed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
+    //char* seed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
     char* port = argv[1];
-    char* result;
+    char* plainName;
+    char* keyName;
+    char* pfileContents;
+    char* kfileContents;
+    //char* result = NULL;
     socklen_t addr_size;
     struct sockaddr_in clientAddr;
-    //Convert port
+    off_t pSize = 0;
+    off_t kSize = 0;
     
     int sock, sockFD, status;
     int yes = 1;
@@ -58,14 +64,14 @@ int main(int argc, char* argv[])
     if (p == NULL) {fprintf(stderr, "server failed to bind\n"); exit(2);}
     freeaddrinfo(addrInfo);
     if (listen(sock, 5) == -1) {perror("listen"); exit(1);}
-    printf("Listening on socket: %s:%s\n", hostname, argv[1]);
+    //printf("Listening on socket: %s:%s\n", hostname, argv[1]);
     while (1)
     {
         addr_size = sizeof(clientAddr);
         //int result = 0;
         sockFD = accept(sock, (struct sockaddr *)&clientAddr, &addr_size);
-        if (sockFD < 0) {printf("error accepting connection"); close(sockFD);close(sock); exit(2);}
-        printf("Connection accepted.\n");
+        if (sockFD < 0) {continue;} //Keep listening
+        //printf("Connection accepted.\n");
         switch (spawnPid = fork())
         {
             case -1:
@@ -87,22 +93,17 @@ int main(int argc, char* argv[])
                 else
                     { 
                         memset(&buffer, '\0', sizeof(buffer));
-                        recv(sockFD, buffer, sizeof(buffer), 0);
-                        printf("%s", buffer);
-                        send(sockFD, "Begin upload", 14, 0);
-                        //recvFile(sockFD, NULL, 1); //write to stdout and add newline
-                        // Test
+                        recv(sockFD, &pSize, sizeof(pSize), 0);                        
+                        recv(sockFD, &kSize, sizeof(kSize), 0);
+
+                        char* pfileContents = malloc(sizeof(char)*pSize);
+                        char* kfileContents = malloc(sizeof(char)*kSize);
+
+                        pfileContents = recvFile(sockFD, pSize, 0);
+                        kfileContents = recvFile(sockFD, kSize, 0);
+                        printf("%s\n", pfileContents);
+                        printf("%s\n", kfileContents);
                         
-                        FILE* plainFD = fopen("plainTemp", "w+");
-                        FILE* keyFD = fopen("keyTemp", "w+");
-                        recvFile(sockFD, plainFD, 1);
-                        recvFile(sockFD, keyFD, 1);
-                        encrypt(plainFD, keyFD, seed, result);
-                        printf("%s", result);
-                        //Endtest
-                        remove("plainTemp");
-                        remove("keyTemp");
-                        free(result);
                         
                     }
             default:
@@ -116,54 +117,64 @@ int main(int argc, char* argv[])
    return 0;
 }
 
-void sendFile(int sockfd, char* contents)
+
+void sendFile(int sockfd, off_t size, FILE* file, char* fileName)
 {   
-        int bytesSent = 0;
-        FILE* tempFD = NULL;
-        char* tempFile = contents;
-        tempFile[strcspn(tempFile, "\n")] = 0;
-        
-        tempFD = fopen(tempFile, "r");
+    int bytesSent = 0;
+
         //Transfer file while EOF has not been reached
-        send(sockfd, tempFile, strlen(tempFile), 0);
-        while(!(feof(tempFD)))
-        {
+       
+    while(!(feof(file)))
+    {
             
-            char* fileBuf[MAX_LEN] = {0};
-            int n = fread(fileBuf, 1, MAX_LEN, tempFD);  
-            bytesSent += n;          
-            send(sockfd, fileBuf, n, 0);
-        }     
-         printf("File transfer complete. Sent %d bytes.\n", bytesSent); 
+        char* fileBuf[MAX_LEN] = {0};
+        int n = fread(fileBuf, 1, size, file);  
+        bytesSent += n;          
+        send(sockfd, fileBuf, n, 0);
+    }     
+    //printf("File transfer complete. Sent %d bytes.\n", bytesSent);     
+     
+      
 }
 //Recv file
-void recvFile(int sockfd, FILE* output, int newline)
+char* recvFile(int sockfd, off_t size, int flag)
 {
+    char* recvdFile = malloc(sizeof(char*)*size);
     int bytesRecv = 0;
     char buff[MAX_LEN] = {0};
-    if (output == NULL) 
+    int n = 0;
+    if (flag == 1) 
     {
         // Recv file and Write to stdout
-        while ((bytesRecv = recv(sockfd, buff, MAX_LEN, 0) > 0))
+        while ((n = recv(sockfd, buff, MAX_LEN, 0) > 0))
         {
             write(STDOUT_FILENO, buff, MAX_LEN);
-        }
-        if (newline == 1)
-        {
-            write(STDOUT_FILENO, "\n", 1);
-        }
+            bytesRecv += n;
+            return NULL;
+        }        
     }
     else
     {   //Recv file and write to FILE* output
-        while ((bytesRecv = recv(sockfd, buff, MAX_LEN, 0) > 0))
+        while ((n = recv(sockfd, buff, MAX_LEN, 0 ) > 0)
         {
-            fwrite(buff, MAX_LEN, MAX_LEN, output);
-        }
+            write(recvdFile, buff, MAX_LEN);
+            bytesRecv += n;
+        }        
     }
+    return recvdFile;
+}
+off_t fsize(const char* filename)
+{
+    struct stat st;
+
+    if(stat(filename, &st) == 0)
+        return st.st_size;
+    fprintf(stderr, "Can't determine size of %s: %s\n", filename, strerror(errno));
+        return -1;
 }
 
 
-void encrypt(FILE* plainF, FILE* keyF, char* seed, char* res)
+/*void encrypt(char* plainF, char* keyF, char* seed, char* res)
 {
     char* pfileContents;
     char* kfileContents;
@@ -187,9 +198,11 @@ void encrypt(FILE* plainF, FILE* keyF, char* seed, char* res)
     //numVal = malloc(sizeof(char)* strlen(seed));
     //Read file stream into char* 
     fread(pfileContents, pSize, pSize, plainF);
-    pfileContents[strcspn(pfileContents, "\n")] = 0;
+    printf("Plaintext file contents:\n %s", pfileContents);
+    //pfileContents[strcspn(pfileContents, "\n")] = 0;
     fread(kfileContents, kSize, kSize, keyF);
-    kfileContents[strcspn(kfileContents, "\n")] = 0;
+    printf("Key file contents:\n %s", kfileContents);
+    //kfileContents[strcspn(kfileContents, "\n")] = 0;
     
     //Convert plaintext to number 0 - 27 based on seed 
     for (i = 0; i < pSize; i++)
@@ -199,9 +212,12 @@ void encrypt(FILE* plainF, FILE* keyF, char* seed, char* res)
             if (pfileContents[i] == seed[j])
             {
                snprintf(&pfileContents[i], 1, "%d", j);
+               
             }
         }
+        printf("%d", pfileContents[i]);
     }
+    
     //Convert key to number 0 - 27 based on seed
     for (i = 0; i < kSize; i++)
     {
@@ -209,14 +225,18 @@ void encrypt(FILE* plainF, FILE* keyF, char* seed, char* res)
         {
             if (kfileContents[i] == seed[j])
             {
-                snprintf(&pfileContents[i], 1, "%d", j);
+                snprintf(&kfileContents[i], 1, "%d", j);
+                
             }
         }
+        printf("%d", kfileContents[i]);
     }
     
     for (i = 0; i < pSize; i++)
     {
         int temp = (pfileContents[i] + kfileContents[i]) % 27;
         result[i] = seed[temp];  
+        printf("%d", result[i]);
     }
 }
+*/
