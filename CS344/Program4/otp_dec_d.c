@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
 {
     if (argc < 2) {fprintf(stderr,"USAGE: %s [listening port]\n", argv[0]); exit(1); }
 
-    char* handshake = "3Q9I6E";
+    char* handshake = "8T9GS1";
     char buffer[MAX_LEN];
     struct addrinfo addr, *addrInfo, *p;
     char* hostname = "localhost";    
@@ -87,23 +87,23 @@ int main(int argc, char* argv[])
                     }
                 else
                     { 
-                        off_t pSize = 0;
+                        off_t cSize = 0;
                         off_t kSize = 0;
                         
                         memset(&buffer, '\0', sizeof(buffer));
                         fflush(stdout);
-                        recv(sockFD, &pSize, sizeof(pSize), 0);
-                        //printf("%d\n", (int)pSize);
+                        recv(sockFD, &cSize, sizeof(cSize), 0);
+                        //printf("%d\n", (int)cSize);
                         fflush(stdout);       
                         recv(sockFD, &kSize, sizeof(kSize), 0);
                         //printf("%d\n", (int)kSize);
 
-                        char* pfileContents = malloc(sizeof(char)*pSize);
+                        char* cfileContents = malloc(sizeof(char)*cSize);
                         char* kfileContents = malloc(sizeof(char)*kSize);
-                        char* encrypted = malloc(sizeof(char)*pSize);
+                        char* decrypted = malloc(sizeof(char)*cSize);
                         
-                        recvFile(sockFD, pSize, pfileContents, 0);                        
-                        //printf("%s\n", pfileContents);
+                        recvFile(sockFD, cSize, cfileContents, 0);                        
+                        //printf("%s\n", cfileContents);
 
                         send(sockFD, "PT transfer: good\n", 18, 0);
                         
@@ -112,15 +112,15 @@ int main(int argc, char* argv[])
                         //printf("%s\n", kfileContents);
                         send(sockFD, "K transfer: good\n", 17, 0);
 
-                        crypto(pfileContents, kfileContents, pSize, kSize, encrypted);
-                        //printf("%s\n", encrypted);
-                        //printf("%d\n", (int)strlen(encrypted));
-                        sendFile(sockFD, pSize, encrypted);
+                        crypto(cfileContents, kfileContents, cSize, kSize, decrypted);
+                        //printf("%s\n", decrypted);
+                        //printf("%d\n", (int)strlen(decrypted));
+                        sendFile(sockFD, cSize, decrypted);
                         //if (recv(sockFD, buffer, sizeof(buffer), 0) < 0) {perror("Data recv error"); exit(2);}
 
-                        free(pfileContents);
+                        free(cfileContents);
                         free(kfileContents);
-                        free(encrypted);
+                        free(decrypted);
                         
                     }
             default:
@@ -188,19 +188,19 @@ off_t fsize(const char* filename)
 }
 
 
-void crypto(char* pCont, char* kCont, off_t pSize, off_t kSize, char* res)
+void crypto(char* cCont, char* kCont, off_t cSize, off_t kSize, char* res)
 {
     int pEnc[MAX_SIZE] = {0};
     int kEnc[MAX_SIZE] = {0};
     int key[MAX_SIZE] = {0};
     int cipher[MAX_SIZE] = {0};
     int i;
-    for (i = 0; i < pSize; i++)
-    if (pCont[i] == ' ')
+    for (i = 0; i < cSize; i++)
+    if (cCont[i] == ' ')
         pEnc[i] = 26;
     else
     {
-        pEnc[i] = (pCont[i] - 65);
+        pEnc[i] = (cCont[i] - 65);
     }
     
     for (i = 0; i < kSize; i++)
@@ -215,7 +215,7 @@ void crypto(char* pCont, char* kCont, off_t pSize, off_t kSize, char* res)
         }
     }
 
-    for (i = 0; i < (pSize - 1); i++) //Ignore newline
+    for (i = 0; i < (cSize - 1); i++) //Ignore newline
     {
         key[i] = (pEnc[i] + kEnc[i]);
         cipher[i] = key[i] % 27;
@@ -229,5 +229,5 @@ void crypto(char* pCont, char* kCont, off_t pSize, off_t kSize, char* res)
         }
 
     }
-    //strcat(&res[pSize - 1], "\n"); //Append newline 
+    //strcat(&res[cSize - 1], "\n"); //Append newline 
 }

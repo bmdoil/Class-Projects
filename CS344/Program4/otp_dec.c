@@ -25,7 +25,6 @@ void sendFile(int sockfd, int size, char* fCont);
 void recvFile(int sockfd, int size, char* contents, int flag);
 char buffer[MAX_SIZE];
 
-
 int main(int argc, char* argv[])
 {
     //argv[1] = plaintext
@@ -33,13 +32,14 @@ int main(int argc, char* argv[])
     //argv[3] = port
     
     if (argc < 4){fprintf(stderr, "USAGE: %s plaintext key port\n", argv[0]);exit(3);}
-    char* handshake = "3Q9I6E";
+    char* handshake = "8T9GS1";
     
     struct addrinfo addr, *addrInfo, *p;
     char* plainName = argv[1];
     char* keyName = argv[2];
     char* hostname = "localhost";
     int sock;
+  
 
     
     char* seed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
@@ -163,7 +163,7 @@ void sendFile(int sockfd, int size, char* fCont)
 
     while (bytesSent < size)
     {   
-        n = send(sockfd, fCont, MAX_LEN, 0);
+        n = send(sockfd, &fCont, MAX_LEN, 0);
         bytesSent += n;
     }
     //printf("%d bytes sent\n", bytesSent);             
@@ -191,7 +191,7 @@ void recvFile(int sockfd, int size, char* contents, int flag)
     {   
         while (bytesRecv < size)
         {
-            n = recv(sockfd, contents, MAX_LEN, 0);
+            n = recv(sockfd, &contents, MAX_LEN, 0);
             bytesRecv += n;
         }        
     }
