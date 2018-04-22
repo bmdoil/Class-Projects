@@ -1,9 +1,7 @@
 #include <omp.h>
 #include <iostream>
-#include <iomanip>
 #include <cstdlib>
-#include <stdio.h>
-#include <math.h>
+#include <cstdio>
 
 #define XMIN	 0.
 #define XMAX	 3.
@@ -50,48 +48,45 @@
 #define BOTZ23  -8.
 #define BOTZ33  -3.
 
-float Height( int iu, int iv, int NUMNODES ); 
+#define NUMRUNS 10
 
+float Height(int iu, int iv);
 
 int main(int argc, char* argv[]) {
 
-    if (argc != 3) {
-        std::cout << "Usage: ./project1 [NUMTHREADS] [NUMNODES]\n";
-        exit(1);
-    }
 
-    //Read in the args
-    int NUMTHREADS = atoi(argv[1]);
-    int NUMNODES = atoi(argv[2]);
+    #ifndef _OPENMP
+    std::fprintf(stderr, "OpenMP not supported, exiting program.\n");
+    return 1;
+    #endif
 
-    //Test input
-    if (NUMTHREADS <= 0 || NUMNODES <= 0) {
-        std::cout << "Usage: Input must be > 0\n";
-        exit(1);
-    }
-
+    double vol = 0.;
+    double avg_mcalcs = 0.;
+    double max_mcalcs = 0.;
+    //open a data file to store results
+    FILE *results = std::fopen(argv[1], "a");
+    
     // set the number of threads
     omp_set_num_threads(NUMTHREADS);
 
-   
-    double time_start = omp_get_wtime();
-
-    // calculate what a full tile area would be for this one
+    // calculate full tile area
     float fullTileArea = (
-        (( XMAX - XMIN )/(float)(NUMNODES-1))  *
-        (( YMAX - YMIN )/(float)(NUMNODES-1))
-    );
+        (( XMAX - XMIN )/(float)(NUMNODES-1)) * (( YMAX - YMIN )/(float)(NUMNODES-1)) );    
+    //run NUMRUNS times for avg and max mcalcs
+    for (int i = 0; i < NUMRUNS; i++) {
 
+    vol = 0.;
+    double time_start = omp_get_wtime();  
     
-    double vol = 0.;
-  
-    #pragma omp parallel for default(none), shared(NUMNODES, fullTileArea), reduction(+:vol)
+    
+    #pragma omp parallel for default(none), shared(fullTileArea), reduction(+:vol)
+
     for (int i = 0; i < NUMNODES*NUMNODES; i++) {
         // set up the x + y coordinate proxies instead of nested loop
         int iu = i % NUMNODES;
         int iv = i / NUMNODES;
 
-        double localVol = Height(iu, iv, NUMNODES) * fullTileArea;
+        double localVol = Height(iu, iv) * fullTileArea;
 
         // if x is a boundary area, divide by half.
         if (iu == 0 || iu == (NUMNODES - 1)) {localVol *= 0.5;}
@@ -101,22 +96,24 @@ int main(int argc, char* argv[]) {
         vol += localVol;
     }
 
-   
-    int heights = (NUMNODES * NUMNODES);
     double time_end = omp_get_wtime();
     double time_elapsed = (time_end - time_start);
-
-    // comment out this first line when running the python script.
-    std::cout << "threads,nodes,vol,time_elapsed\n";
-    std::cout << std::fixed << NUMTHREADS << "," << NUMNODES << ","
-        << std::setprecision(15) << vol << "," << time_elapsed << "\n";
-
-    return 0;
+    double mcalcs = (double)(NUMNODES * NUMNODES) / time_elapsed / 1000000;   
+    if (mcalcs > max_mcalcs) {max_mcalcs = mcalcs;}
+    avg_mcalcs += mcalcs;
+    std::printf("Run complete: Threads: %d  Nodes: %d   Volume: %lf MCalcs: %lf\n", NUMTHREADS, NUMNODES, vol, mcalcs);
+    }
+    
+    //Print results to file
+    std::fprintf(results, "%d, %d, %lf, %lf, %lf\n", NUMTHREADS, NUMNODES, vol, max_mcalcs, avg_mcalcs/NUMRUNS);
+	std::fclose(results);	
+	
+	return 0;	
 }
 
 
 
-float Height(int iu, int iv, int NUMNODES) {
+float Height(int iu, int iv) {
         // iu,iv = 0 .. NUMNODES-1
     float u = (float)iu / (float)(NUMNODES-1);
     float v = (float)iv / (float)(NUMNODES-1);
