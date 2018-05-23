@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#define NUMT	         1
+#define NUMT	         4
 #define ARRAYSIZE       1000000 // you decide
 #define NUMTRIES        1000	// you decide
 
@@ -37,16 +37,16 @@ main( )
 
                 double time1 = omp_get_wtime( );
                 double megaMults = (double)ARRAYSIZE/(time1-time0)/1000000.;
-                
                 sumMegaMults += megaMults;
                 if( megaMults > maxMegaMults )
                         maxMegaMults = megaMults;
                 
         }
+
         double avgMegaMults = sumMegaMults/(double)NUMTRIES;
         printf( "   Peak Performance = %8.2lf MegaMults/Sec\n", maxMegaMults );
         printf( "Average Performance = %8.2lf MegaMults/Sec\n", avgMegaMults );
-        
+       
 
 	// note: %lf stands for "long float", which is how printf prints a "double"
 	//        %d stands for "decimal integer", not "double"
