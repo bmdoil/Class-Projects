@@ -1,0 +1,6 @@
+#!/bin/bash
+gcc keygen.c -o keygen -g 
+gcc otp_enc.c fencrypt.c -o otp_enc -g 
+gcc otp_enc_d.c fencrypt.c -o otp_enc_d -g 
+gcc otp_dec.c fencrypt.c -o otp_dec -g 
+gcc otp_dec_d.c fencrypt.c -o otp_dec_d -g 

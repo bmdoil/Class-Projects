@@ -1,0 +1,6 @@
+0, take a nap
+0, take a nap
+1, study heap-based priority queue
+101, review trees for Final exam
+3, do assignment 5
+0, take a nap
