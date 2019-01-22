@@ -1,0 +1,21 @@
+Compile using the makefile
+
+$ make
+
+Run merge4 to test reading from file, sorting, and outputting to file
+
+merge4 data.txt
+ 
+merge4 creates output file "merge4.txt"
+
+merge4Time
+
+merge4 [startSize] [iterations] [stepSize]
+
+Arguments are required.
+
+./merge4Time 10000 100 10000
+
+
+
+
