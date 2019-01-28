@@ -5,7 +5,7 @@
 
 using namespace std;
 
-int shoppingCost(int[] weights, int[] prices, int items, int maxW, vector<int>& items);
+int shoppingCost(int*, int*, int, int, vector<int>&);
 
 int main(int argc, char* argv[]){
 
@@ -69,7 +69,7 @@ int main(int argc, char* argv[]){
 
               // find maximum price of items that can be carried bycurrent family member and add it to maxPrice
 
-              maxPrice = maxPrice + shoppingCost(weights, prices, numItems, maxWeight);
+              maxPrice = maxPrice + shoppingCost(weights, prices, numItems, maxWeight, itemList);
 
           }
           // Write the maximum total price to out
@@ -78,13 +78,13 @@ int main(int argc, char* argv[]){
 
           //Print items 
 
-          for (i = 0; i < familySize; i++) {
+          for (f = 0; f < familySize; i++) {
               //Sort items for this family member
-              sort(itemList[i].begin(), itemList[i].end());
-              out << i + 1 << ":";
-              for (j = 0; j < itemList.size(); j++)
+              sort(itemList[f].begin(), itemList[f].end());
+              out << f + 1 << ":";
+              for (g = 0; g < itemList.size(); j++)
               {
-                  out << itemList[i][j] << " ";
+                  out << itemList[f][g] << " ";
               }
               out << endl;
           }
@@ -127,7 +127,7 @@ int shoppingCost(int weights[], int prices[], int numItems, int maxWeight, vecto
 
               else
 
-                   result[i][j] = result[i - 1]jw];
+                   result[i][j] = result[i - 1][j];
 
           }
 
