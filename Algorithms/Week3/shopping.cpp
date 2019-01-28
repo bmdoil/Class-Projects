@@ -78,11 +78,11 @@ int main(int argc, char* argv[]){
 
           //Print items 
 
-          for (f = 0; f < familySize; i++) {
+          for (f = 0; f < familySize; f++) {
               //Sort items for this family member
               sort(itemList[f].begin(), itemList[f].end());
               out << f + 1 << ":";
-              for (g = 0; g < itemList.size(); j++)
+              for (g = 0; g < itemList.size(); g++)
               {
                   out << itemList[f][g] << " ";
               }
@@ -101,7 +101,7 @@ int main(int argc, char* argv[]){
 }
 
 // Returns the maximum price of items that can be carried by a person, given item weights, prices, number of items, and max weight person can carry
-int shoppingCost(int weights[], int prices[], int numItems, int maxWeight, vector<int>& items)
+int shoppingCost(int weights[], int prices[], int numItems, int maxWeight, vector<int> &items)
 
 {
 
@@ -123,7 +123,7 @@ int shoppingCost(int weights[], int prices[], int numItems, int maxWeight, vecto
 
               else if (weights[i - 1] <= j)
 
-                   result[i][w] = max(prices[i - 1] + result[i - 1][j - weights[i - 1]], result[i - 1][j]);
+                   result[i][j] = max(prices[i - 1] + result[i - 1][j - weights[i - 1]], result[i - 1][j]);
 
               else
 
