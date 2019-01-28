@@ -69,7 +69,7 @@ int main(int argc, char* argv[]){
 
               // find maximum price of items that can be carried bycurrent family member and add it to maxPrice
 
-              maxPrice = maxPrice + shoppingCost(weights, prices, numItems, maxWeight, itemList);
+              maxPrice = maxPrice + shoppingCost(weights, prices, numItems, maxWeight, itemList[j]);
 
           }
           // Write the maximum total price to out
@@ -78,11 +78,11 @@ int main(int argc, char* argv[]){
 
           //Print items 
 
-          for (f = 0; f < familySize; f++) {
+          for (int f = 0; f < familySize; f++) {
               //Sort items for this family member
               sort(itemList[f].begin(), itemList[f].end());
               out << f + 1 << ":";
-              for (g = 0; g < itemList.size(); g++)
+              for (int g = 0; g < itemList.size(); g++)
               {
                   out << itemList[f][g] << " ";
               }
