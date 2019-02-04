@@ -120,3 +120,4 @@ numbodies,numsteps,numthreads,omp_schedule,grain,megabodies_per_sec
 100, 200, 4,, coarse, 66.626691
 100, 200, 4,, coarse, 61.466593
 100, 200, 4,, coarse, 63.496095
+NUMTHREADS,PADDING,RUNTIME,BIGINT

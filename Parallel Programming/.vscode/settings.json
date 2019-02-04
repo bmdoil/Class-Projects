@@ -1,0 +1,19 @@
+{
+    "python.pythonPath": "/usr/local/opt/python/bin/python3.7",
+    "C_Cpp.errorSquiggles": "Disabled",
+    "files.associations": {
+        "__config": "cpp",
+        "__nullptr": "cpp",
+        "cstddef": "cpp",
+        "exception": "cpp",
+        "initializer_list": "cpp",
+        "new": "cpp",
+        "stdexcept": "cpp",
+        "type_traits": "cpp",
+        "typeinfo": "cpp",
+        "algorithm": "cpp",
+        "iosfwd": "cpp",
+        "vector": "cpp",
+        "iostream": "cpp"
+    }
+}
