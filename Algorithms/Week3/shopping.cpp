@@ -103,7 +103,7 @@ int shoppingCost(int weights[], int prices[], int numItems, int maxWeight){
 }
 
 
-int familyMemberMax(int prices[], int weights[], int max[], int numItems, int family);
+int familyMemberMax(int prices[], int weights[], int max[], int numItems, int family)
 {
    
     int totalPrice = 0;
@@ -111,7 +111,7 @@ int familyMemberMax(int prices[], int weights[], int max[], int numItems, int fa
     for (int i = 0; i < family; i++)
     {
         // Retrieve max price for current family member
-        totalPrice += shoppingCost(price, weight, max[i], number);
+        totalPrice += shoppingCost(prices, weights, max[i], numItems);
     }
     return totalPrice;
 }

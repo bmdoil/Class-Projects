@@ -1,0 +1,11 @@
+Brent Doil
+CS325 
+HW4
+
+Compile with:
+$ g++ activity.cpp -g -std=c++11 -o activity
+
+Run with:
+./activity
+
+Output is to stdout
