@@ -30,9 +30,7 @@ int main(int argc, char* argv[])
         return -1;
 
     }
-    startSize = atoi(argv[1]);
-    iterations = atoi(argv[2]);
-    stepSize = atoi(argv[3]);
+  
     int arrLen;
     int i, j;
 

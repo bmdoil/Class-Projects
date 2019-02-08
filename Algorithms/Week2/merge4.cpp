@@ -67,7 +67,6 @@ void merge(int* arr, int mid, int len){
     memcpy(tmp+k, arr+i, (mid - i) * sizeof *arr);
     memcpy(arr, tmp, (k + (mid - i)) * sizeof *arr);
 
-
 }
 void mergeSort(int* arr, int len)
 {

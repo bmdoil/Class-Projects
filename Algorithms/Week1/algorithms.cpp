@@ -131,6 +131,7 @@ void printarr(int A[], int len) {
     for (int i = 0; i < len; i++) cout << A[i] << " ";
     cout << endl;
 }
+
 int main(int argc, char* argv[]) {
 
     int startSize, iterations;
